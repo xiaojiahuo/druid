@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,27 @@
  */
 package com.alibaba.druid.sql.ast.expr;
 
+import java.util.Collections;
+import java.util.List;
+
 import com.alibaba.druid.sql.SQLUtils;
-import com.alibaba.druid.sql.ast.*;
-import com.alibaba.druid.sql.ast.statement.*;
+import com.alibaba.druid.sql.ast.SQLDataType;
+import com.alibaba.druid.sql.ast.SQLDeclareItem;
+import com.alibaba.druid.sql.ast.SQLExpr;
+import com.alibaba.druid.sql.ast.SQLExprImpl;
+import com.alibaba.druid.sql.ast.SQLName;
+import com.alibaba.druid.sql.ast.SQLObject;
+import com.alibaba.druid.sql.ast.SQLParameter;
+import com.alibaba.druid.sql.ast.statement.SQLColumnDefinition;
+import com.alibaba.druid.sql.ast.statement.SQLSelect;
+import com.alibaba.druid.sql.ast.statement.SQLSelectItem;
+import com.alibaba.druid.sql.ast.statement.SQLSelectQueryBlock;
+import com.alibaba.druid.sql.ast.statement.SQLSubqueryTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLTableSource;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
 import com.alibaba.druid.util.FnvHash;
 
-public class SQLIdentifierExpr extends SQLExprImpl implements SQLName {
+public final class SQLIdentifierExpr extends SQLExprImpl implements SQLName {
     protected String    name;
     private   long      hashCode64;
 
@@ -43,6 +57,14 @@ public class SQLIdentifierExpr extends SQLExprImpl implements SQLName {
 
     public String getSimpleName() {
         return name;
+    }
+
+    public String getLowerName() {
+        if (name == null) {
+            return null;
+        }
+
+        return name.toLowerCase();
     }
 
     public String getName() {
@@ -203,5 +225,18 @@ public class SQLIdentifierExpr extends SQLExprImpl implements SQLName {
 
     public boolean nameEquals(String name) {
         return SQLUtils.nameEquals(this.name, name);
+    }
+
+    @Override
+    public List<SQLObject> getChildren() {
+        return Collections.emptyList();
+    }
+
+    public static boolean matchIgnoreCase(SQLExpr expr, String name) {
+        if (!(expr instanceof SQLIdentifierExpr)) {
+            return false;
+        }
+        SQLIdentifierExpr ident = (SQLIdentifierExpr) expr;
+        return ident.getName().equalsIgnoreCase(name);
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -245,6 +245,10 @@ public class SQLJoinTableSource extends SQLTableSourceImpl implements SQLReplace
             x.setRight(right.clone());
         }
 
+        if(condition != null){
+            x.setCondition(condition);
+        }
+
         for (SQLExpr item : using) {
             SQLExpr item2 = item.clone();
             item2.setParent(x);
@@ -459,11 +463,13 @@ public class SQLJoinTableSource extends SQLTableSourceImpl implements SQLReplace
             return false;
         }
 
-        if (left.containsAlias(alias_a) && right.containsAlias(alias_b)) {
+        if (left.containsAlias(alias_a)
+                && right.containsAlias(alias_b)) {
             return true;
         }
 
-        return right.containsAlias(alias_a) && left.containsAlias(alias_b);
+        return right.containsAlias(alias_a)
+                && left.containsAlias(alias_b);
     }
 
     public boolean conditionContainsTable(String alias) {
@@ -498,5 +504,17 @@ public class SQLJoinTableSource extends SQLTableSourceImpl implements SQLReplace
         }
 
         return right.findTableSource(alias_hash);
+    }
+
+    public SQLTableSource other(SQLTableSource x) {
+        if (left == x) {
+            return right;
+        }
+
+        if (right == x) {
+            return left;
+        }
+
+        return null;
     }
 }

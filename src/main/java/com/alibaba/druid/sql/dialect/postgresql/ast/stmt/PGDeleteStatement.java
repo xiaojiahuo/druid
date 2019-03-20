@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,7 @@
  */
 package com.alibaba.druid.sql.dialect.postgresql.ast.stmt;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import com.alibaba.druid.sql.ast.SQLName;
 import com.alibaba.druid.sql.ast.statement.SQLDeleteStatement;
-import com.alibaba.druid.sql.ast.statement.SQLWithSubqueryClause;
 import com.alibaba.druid.sql.dialect.postgresql.visitor.PGASTVisitor;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
 import com.alibaba.druid.util.JdbcConstants;
@@ -28,8 +23,7 @@ import com.alibaba.druid.util.JdbcConstants;
 public class PGDeleteStatement extends SQLDeleteStatement implements PGSQLStatement {
 
     private boolean       returning;
-    private String        alias;
-    
+
     public PGDeleteStatement() {
         super (JdbcConstants.POSTGRESQL);
     }
@@ -43,14 +37,15 @@ public class PGDeleteStatement extends SQLDeleteStatement implements PGSQLStatem
     }
 
     public String getAlias() {
-        return alias;
+        if (tableSource == null) {
+            return null;
+        }
+        return tableSource.getAlias();
     }
 
     public void setAlias(String alias) {
-        this.alias = alias;
+        this.tableSource.setAlias(alias);
     }
-
-
 
     protected void accept0(SQLASTVisitor visitor) {
         accept0((PGASTVisitor) visitor);
@@ -73,7 +68,6 @@ public class PGDeleteStatement extends SQLDeleteStatement implements PGSQLStatem
         cloneTo(x);
 
         x.returning = returning;
-        x.alias = alias;
 
         return x;
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,22 +15,23 @@
  */
 package com.alibaba.druid.sql.ast;
 
-import com.alibaba.druid.sql.visitor.SQLASTVisitor;
-
 import java.util.ArrayList;
 import java.util.List;
 
-public class SQLParameter extends SQLObjectImpl implements SQLObjectWithDataType {
+import com.alibaba.druid.sql.visitor.SQLASTVisitor;
 
-    private SQLName       name;
-    private SQLDataType   dataType;
-    private SQLExpr       defaultValue;
-    private ParameterType paramType;
-    private boolean       noCopy = false;
-    private boolean       constant = false;
-
-    private SQLName       cursorName;
+public final class SQLParameter extends SQLObjectImpl implements SQLObjectWithDataType {
+    private SQLName                  name;
+    private SQLDataType              dataType;
+    private SQLExpr                  defaultValue;
+    private ParameterType            paramType;
+    private boolean                  noCopy = false;
+    private boolean                  constant = false;
+    private SQLName                  cursorName;
     private final List<SQLParameter> cursorParameters = new ArrayList<SQLParameter>();
+    private boolean                  order;
+    private boolean                  map;
+    private boolean                  member;
 
     public SQLExpr getDefaultValue() {
         return defaultValue;
@@ -135,6 +136,8 @@ public class SQLParameter extends SQLObjectImpl implements SQLObjectWithDataType
         x.paramType = paramType;
         x.noCopy = noCopy;
         x.constant = constant;
+        x.order = order;
+        x.map = map;
         if (cursorName != null) {
             x.setCursorName(cursorName.clone());
         }
@@ -144,5 +147,29 @@ public class SQLParameter extends SQLObjectImpl implements SQLObjectWithDataType
             x.cursorParameters.add(p2);
         }
         return x;
+    }
+
+    public boolean isOrder() {
+        return order;
+    }
+
+    public void setOrder(boolean order) {
+        this.order = order;
+    }
+
+    public boolean isMap() {
+        return map;
+    }
+
+    public void setMap(boolean map) {
+        this.map = map;
+    }
+
+    public boolean isMember() {
+        return member;
+    }
+
+    public void setMember(boolean member) {
+        this.member = member;
     }
 }

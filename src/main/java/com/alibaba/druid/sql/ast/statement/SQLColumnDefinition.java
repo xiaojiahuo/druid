@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,14 +19,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.alibaba.druid.sql.SQLUtils;
-import com.alibaba.druid.sql.ast.*;
+import com.alibaba.druid.sql.ast.SQLDataType;
+import com.alibaba.druid.sql.ast.SQLExpr;
+import com.alibaba.druid.sql.ast.SQLName;
+import com.alibaba.druid.sql.ast.SQLObjectImpl;
+import com.alibaba.druid.sql.ast.SQLObjectWithDataType;
+import com.alibaba.druid.sql.ast.SQLReplaceable;
 import com.alibaba.druid.sql.ast.expr.SQLCharExpr;
 import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
 import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
-import com.alibaba.druid.util.JdbcConstants;
 
-public class SQLColumnDefinition extends SQLObjectImpl implements SQLTableElement, SQLObjectWithDataType {
+public class SQLColumnDefinition extends SQLObjectImpl implements SQLTableElement, SQLObjectWithDataType, SQLReplaceable {
     protected String                          dbType;
 
     protected SQLName                         name;
@@ -45,10 +49,11 @@ public class SQLColumnDefinition extends SQLObjectImpl implements SQLTableElemen
     protected SQLExpr                         storage;
     protected SQLExpr                         charsetExpr;
     protected SQLExpr                         asExpr;
-    protected boolean                         sorted        = false;
+    protected boolean                         stored        = false;
     protected boolean                         virtual       = false;
 
     protected Identity                        identity;
+    protected SQLExpr                         generatedAlawsAs;
 
     public SQLColumnDefinition(){
 
@@ -59,11 +64,22 @@ public class SQLColumnDefinition extends SQLObjectImpl implements SQLTableElemen
     }
 
     // for sqlserver
-    public void setIdentity(Identity identity) {
-        if (identity != null) {
-            identity.setParent(this);
+    public void setIdentity(Identity x) {
+        if (x != null) {
+            x.setParent(this);
         }
-        this.identity = identity;
+        this.identity = x;
+    }
+
+    public SQLExpr getGeneratedAlawsAs() {
+        return generatedAlawsAs;
+    }
+
+    public void setGeneratedAlawsAs(SQLExpr x) {
+        if (x != null) {
+            x.setParent(this);
+        }
+        this.generatedAlawsAs = x;
     }
 
     public Boolean getEnable() {
@@ -196,12 +212,12 @@ public class SQLColumnDefinition extends SQLObjectImpl implements SQLTableElemen
         this.virtual = virtual;
     }
 
-    public boolean isSorted() {
-        return sorted;
+    public boolean isStored() {
+        return stored;
     }
 
-    public void setSorted(boolean sorted) {
-        this.sorted = sorted;
+    public void setStored(boolean stored) {
+        this.stored = stored;
     }
 
     public SQLExpr getCharsetExpr() {
@@ -248,6 +264,21 @@ public class SQLColumnDefinition extends SQLObjectImpl implements SQLTableElemen
 
     public void setStorage(SQLExpr storage) {
         this.storage = storage;
+    }
+
+    @Override
+    public boolean replace(SQLExpr expr, SQLExpr target) {
+        if (defaultExpr == expr) {
+            setDefaultExpr(target);
+            return true;
+        }
+
+        if (name == expr) {
+            setName((SQLName) target);
+            return true;
+        }
+
+        return false;
     }
 
     public static class Identity extends SQLObjectImpl {
@@ -360,7 +391,7 @@ public class SQLColumnDefinition extends SQLObjectImpl implements SQLTableElemen
             x.setAsExpr(asExpr.clone());
         }
 
-        x.sorted = sorted;
+        x.stored = stored;
         x.virtual = virtual;
 
         if (identity != null) {
@@ -402,5 +433,24 @@ public class SQLColumnDefinition extends SQLObjectImpl implements SQLTableElemen
         }
 
         return false;
+    }
+
+    public boolean isPrimaryKey() {
+        for (SQLColumnConstraint constraint : constraints) {
+            if (constraint instanceof SQLColumnPrimaryKey) {
+                return true;
+            }
+        }
+
+        if (parent instanceof SQLCreateTableStatement) {
+            return ((SQLCreateTableStatement) parent)
+                    .isPrimaryColumn(nameHashCode64());
+        }
+
+        return false;
+    }
+
+    public String toString() {
+        return SQLUtils.toSQLString(this, dbType);
     }
 }

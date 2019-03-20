@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,13 @@
  */
 package com.alibaba.druid.sql.dialect.oracle.ast.expr;
 
+import java.util.Collections;
+import java.util.List;
+
 import com.alibaba.druid.sql.ast.SQLExpr;
 import com.alibaba.druid.sql.ast.SQLExprImpl;
 import com.alibaba.druid.sql.ast.SQLName;
+import com.alibaba.druid.sql.ast.SQLObject;
 import com.alibaba.druid.sql.dialect.oracle.visitor.OracleASTVisitor;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
 import com.alibaba.druid.util.FnvHash;
@@ -75,6 +79,11 @@ public class OracleDbLinkExpr extends SQLExprImpl implements SQLName, OracleExpr
     }
 
     @Override
+    public List<SQLObject> getChildren() {
+        return Collections.<SQLObject>singletonList(this.expr);
+    }
+
+    @Override
     public int hashCode() {
         long value = hashCode64();
         return (int)(value ^ (value >>> 32));
@@ -97,12 +106,10 @@ public class OracleDbLinkExpr extends SQLExprImpl implements SQLName, OracleExpr
 
     public OracleDbLinkExpr clone() {
         OracleDbLinkExpr x = new OracleDbLinkExpr();
-
         if (expr != null) {
-            expr = expr.clone();
+            x.setExpr(expr.clone());
         }
         x.dbLink = dbLink;
-
         return x;
     }
 

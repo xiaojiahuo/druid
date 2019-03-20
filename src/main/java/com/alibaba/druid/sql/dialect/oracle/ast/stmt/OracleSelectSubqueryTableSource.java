@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 package com.alibaba.druid.sql.dialect.oracle.ast.stmt;
 
 import com.alibaba.druid.sql.SQLUtils;
-import com.alibaba.druid.sql.ast.SQLExpr;
 import com.alibaba.druid.sql.ast.statement.SQLSelect;
 import com.alibaba.druid.sql.ast.statement.SQLSubqueryTableSource;
 import com.alibaba.druid.sql.dialect.oracle.visitor.OracleASTVisitor;
@@ -67,5 +66,16 @@ public class OracleSelectSubqueryTableSource extends SQLSubqueryTableSource impl
 
     public String toString () {
         return SQLUtils.toOracleString(this);
+    }
+
+    public OracleSelectSubqueryTableSource clone() {
+        OracleSelectSubqueryTableSource x = new OracleSelectSubqueryTableSource();
+        cloneTo(x);
+
+        if (pivot != null) {
+            setParent(pivot.clone());
+        }
+
+        return x;
     }
 }

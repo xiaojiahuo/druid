@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,12 @@ import static com.alibaba.druid.sql.parser.LayoutCharacters.EOI;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.alibaba.druid.sql.parser.*;
+import com.alibaba.druid.sql.parser.Keywords;
+import com.alibaba.druid.sql.parser.Lexer;
+import com.alibaba.druid.sql.parser.NotAllowCommentException;
+import com.alibaba.druid.sql.parser.ParserException;
+import com.alibaba.druid.sql.parser.SQLParserFeature;
+import com.alibaba.druid.sql.parser.Token;
 
 public class OracleLexer extends Lexer {
 
@@ -144,13 +149,8 @@ public class OracleLexer extends Lexer {
     }
 
     public void scanVariable() {
-        if (ch == '@') {
-            scanChar();
-            token = Token.MONKEYS_AT;
-            return;
-        }
-
-        if (ch != ':' && ch != '#' && ch != '$') {
+        final char c0 = ch;
+        if (c0 != ':' && c0 != '#' && c0 != '$') {
             throw new ParserException("illegal variable. " + info());
         }
 
@@ -160,25 +160,46 @@ public class OracleLexer extends Lexer {
 
         boolean quoteFlag = false;
         boolean mybatisFlag = false;
-        if (charAt(pos + 1) == '"') {
+
+        char c1 = charAt(pos + 1);
+        if (c0 == ':' && c1 == ' ') {
+            pos++;
+            bufPos = 2;
+            c1 = charAt(pos + 1);
+        }
+
+        if (c1 == '"') {
             pos++;
             bufPos++;
             quoteFlag = true;
-        } else if (charAt(pos + 1) == '{') {
+        } else if (c1 == '{') {
             pos++;
             bufPos++;
             mybatisFlag = true;
         }
 
-        for (;;) {
-            ch = charAt(++pos);
+        if (c0 == ':' && c1 >= '0' && c1 <= '9') {
+            for (; ; ) {
+                ch = charAt(++pos);
 
-            if (!isIdentifierChar(ch)) {
-                break;
+                if (ch < '0' || ch > '9') {
+                    break;
+                }
+
+                bufPos++;
+                continue;
             }
+        } else {
+            for (; ; ) {
+                ch = charAt(++pos);
 
-            bufPos++;
-            continue;
+                if (!isIdentifierChar(ch)) {
+                    break;
+                }
+
+                bufPos++;
+                continue;
+            }
         }
 
         if (quoteFlag) {
@@ -204,6 +225,18 @@ public class OracleLexer extends Lexer {
         } else {
             token = Token.VARIANT;
         }
+    }
+
+    protected void scanVariable_at() {
+        scanChar();
+
+        if (ch == '@') {
+            scanChar();
+            token = Token.MONKEYS_AT_AT;
+        } else {
+            token = Token.MONKEYS_AT;
+        }
+        return;
     }
 
     public void scanComment() {
@@ -249,7 +282,7 @@ public class OracleLexer extends Lexer {
                 stringVal = subString(mark + startHintSp, (bufPos - startHintSp) - 1);
                 token = Token.HINT;
             } else {
-                stringVal = subString(mark, bufPos);
+                stringVal = subString(mark, bufPos + 1);
                 token = Token.MULTI_LINE_COMMENT;
                 commentCount++;
                 if (keepComments) {

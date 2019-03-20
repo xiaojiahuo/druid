@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ public class SQLWithSubqueryClause extends SQLObjectImpl {
         protected SQLSelect           subQuery;
         protected SQLStatement        returningStatement;
 
-        protected void cloneTo(Entry x) {
+        public void cloneTo(Entry x) {
             for (SQLName column : columns) {
                 SQLName column2 = column.clone();
                 column2.setParent(x);

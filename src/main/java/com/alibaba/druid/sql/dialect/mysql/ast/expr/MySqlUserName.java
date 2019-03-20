@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,11 @@
  */
 package com.alibaba.druid.sql.dialect.mysql.ast.expr;
 
+import java.util.Collections;
+import java.util.List;
+
 import com.alibaba.druid.sql.ast.SQLName;
+import com.alibaba.druid.sql.ast.SQLObject;
 import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlASTVisitor;
 import com.alibaba.druid.util.FnvHash;
 
@@ -23,6 +27,7 @@ public class MySqlUserName extends MySqlExprImpl implements SQLName, Cloneable {
 
     private String userName;
     private String host;
+    private String identifiedBy;
 
     private long   userNameHashCod64;
     private long   hashCode64;
@@ -59,6 +64,14 @@ public class MySqlUserName extends MySqlExprImpl implements SQLName, Cloneable {
         return userName + '@' + host;
     }
 
+    public String getIdentifiedBy() {
+        return identifiedBy;
+    }
+
+    public void setIdentifiedBy(String identifiedBy) {
+        this.identifiedBy = identifiedBy;
+    }
+
     public String toString() {
         return getSimpleName();
     }
@@ -66,10 +79,16 @@ public class MySqlUserName extends MySqlExprImpl implements SQLName, Cloneable {
     public MySqlUserName clone() {
         MySqlUserName x = new MySqlUserName();
 
-        x.userName = userName;
-        x.host     = host;
+        x.userName     = userName;
+        x.host         = host;
+        x.identifiedBy = identifiedBy;
 
         return x;
+    }
+
+    @Override
+    public List<SQLObject> getChildren() {
+        return Collections.emptyList();
     }
 
     public long nameHashCode64() {

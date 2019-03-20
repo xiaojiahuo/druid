@@ -1,12 +1,18 @@
 package com.alibaba.druid.benckmark.sql;
 
 import com.alibaba.druid.sql.SQLUtils;
+import com.alibaba.druid.sql.ast.SQLObject;
 import com.alibaba.druid.sql.ast.SQLStatement;
+import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
+import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
+import com.alibaba.druid.sql.ast.expr.SQLVariantRefExpr;
+import com.alibaba.druid.sql.ast.statement.SQLSelect;
 import com.alibaba.druid.sql.ast.statement.SQLSelectStatement;
+import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlSelectQueryBlock;
+import com.alibaba.druid.sql.dialect.mysql.parser.MySqlSelectParser;
 import com.alibaba.druid.sql.dialect.mysql.parser.MySqlStatementParser;
 import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlSchemaStatVisitor;
-import com.alibaba.druid.sql.parser.ParserException;
-import com.alibaba.druid.sql.parser.SQLParserFeature;
+import com.alibaba.druid.sql.parser.*;
 import com.alibaba.druid.sql.visitor.SQLASTOutputVisitor;
 import com.alibaba.druid.sql.visitor.SchemaStatVisitor;
 import com.alibaba.druid.stat.TableStat;
@@ -27,12 +33,51 @@ public class SqlHolder {
     private boolean parsed;
     public SQLStatement ast;
 
+    private boolean isParam;
+
+    public static SQLSelectListCache selectListCache = new SQLSelectListCache(JdbcConstants.MYSQL);
+    static {
+        selectListCache.add("select id as id,    gmt_create as gmtCreate,    gmt_modified as gmtModified,    name as name,    owner as owner,    type as type,    statement as statement,    datasource as datasource,    meta as meta,    param_file as paramFile,    sharable as sharable,    data_type as dataType,    status as status,    config as config,    project_id as projectId,    plugins as plugins,    field_compare as fieldCompare,    field_ext as fieldExt,    openx as openx   from");
+        selectListCache.add("SELECT id, dispute_id, buyer_id, seller_id, total_fee, refund_fee, max_apply_goods_fee, apply_goods_fee, apply_carriage_fee, refund_goods_fee, refund_carriage_fee, refund_point, refund_coupon, refund_return_point, refund_cash, real_deduct_refund_point, real_refund_return_point, refund_return_commission, gmt_create, gmt_modified, attributes, attributes_cc FROM");
+//        selectListCache.add("select `auction_relation`.`id`,`auction_relation`.`item_id`,`auction_relation`.`sku_id`,`auction_relation`.`user_id`,`auction_relation`.`target_id`,`auction_relation`.`extra_id`,`auction_relation`.`type`,`auction_relation`.`target_type`,`auction_relation`.`type_attr`,`auction_relation`.`status`,`auction_relation`.`target_user_id`,`auction_relation`.`options`,`auction_relation`.`features`,`auction_relation`.`version`,`auction_relation`.`sub_type`,`auction_relation`.`gmt_create`,`auction_relation`.`gmt_modified` from");
+//        selectListCache.add("SELECT biz_order_id, value_type, key_value, gmt_create, gmt_modified\n" +
+//                "\t, attribute_cc, buyer_id\n" +
+//                "FROM");
+//        selectListCache.add("SELECT biz_order_id, value_type, key_value, gmt_create, gmt_modified\n" +
+//                "\t, attribute_cc, buyer_id\n" +
+//                "FROM");
+//        selectListCache.add("SELECT sub_logistics_order_id, consign_time, attribute_cc, attributes, out_logistics_id\n" +
+//                "\t, parent_id, gmt_create, gmt_modified, detail_order_id, is_last\n" +
+//                "\t, ship_amount, buyer_id, seller_id, ship_status, step_order_id\n" +
+//                "FROM");
+        selectListCache.add("SELECT biz_order_id, out_order_id, seller_nick, buyer_nick, seller_id\n" +
+                "\t, buyer_id, auction_id, auction_title, auction_price, buy_amount\n" +
+                "\t, biz_type, sub_biz_type, fail_reason, pay_status, logistics_status\n" +
+                "\t, out_trade_status, snap_path, gmt_create, status\n" +
+                "\t, ifnull(buyer_rate_status, 4) AS buyer_rate_status\n" +
+                "\t, ifnull(seller_rate_status, 4) AS seller_rate_status, auction_pict_url\n" +
+                "\t, seller_memo, buyer_memo, seller_flag, buyer_flag, buyer_message_path\n" +
+                "\t, refund_status, attributes, attributes_cc, gmt_modified, ip\n" +
+                "\t, end_time, pay_time, is_main, is_detail, point_rate\n" +
+                "\t, parent_id, adjust_fee, discount_fee, refund_fee, confirm_paid_fee\n" +
+                "\t, cod_status, trade_tag, shop_id, sync_version, options\n" +
+                "\t, ignore_sold_quantity, from_group, attribute1, attribute2, attribute3\n" +
+                "\t, attribute4, attribute11\n" +
+                "FROM");
+        selectListCache.add("select `member_cart`.`CART_ID`,`member_cart`.`SKU_ID`,`member_cart`.`ITEM_ID`,`member_cart`.`QUANTITY`,`member_cart`.`USER_ID`,`member_cart`.`SELLER_ID`,`member_cart`.`STATUS`,`member_cart`.`EXT_STATUS`,`member_cart`.`TYPE`,`member_cart`.`SUB_TYPE`,`member_cart`.`GMT_CREATE`,`member_cart`.`GMT_MODIFIED`,`member_cart`.`ATTRIBUTE`,`member_cart`.`ATTRIBUTE_CC`,`member_cart`.`EX2` from");
+    }
+
     public static SqlHolder of(String sql) {
         return new SqlHolder(sql);
     }
 
     SqlHolder(String text) {
         this(text, JdbcConstants.MYSQL);
+    }
+
+    public SqlHolder(String text, String dbType, boolean isParam) {
+        this(text, dbType);
+        this.isParam = isParam;
     }
 
     SqlHolder(String text, String dialect) {
@@ -56,9 +101,34 @@ public class SqlHolder {
         if (parsed) {
             return;
         }
+
+//        if (text.equals("select @@session.tx_read_only")) {
+//            SQLSelect select = new SQLSelect();
+//            MySqlSelectQueryBlock queryBlock = new MySqlSelectQueryBlock();
+//            queryBlock.addSelectItem(new SQLPropertyExpr(new SQLVariantRefExpr("@@session"), "tx_read_only"));
+//            select.setQuery(queryBlock);
+//
+//            ast = new SQLSelectStatement(select);
+//            parsed = true;
+//            return;
+//        }
+
         // ast = SQLUtils.parseStatements(text, dialect).get(0);
+        SQLParserFeature[] features;
+
+        if (isParam) {
+            features = new SQLParserFeature[]{SQLParserFeature.EnableSQLBinaryOpExprGroup, SQLParserFeature.OptimizedForParameterized};
+        } else {
+            features = new SQLParserFeature[]{SQLParserFeature.EnableSQLBinaryOpExprGroup
+                    , SQLParserFeature.OptimizedForParameterized
+                    , SQLParserFeature.UseInsertColumnsCache
+            };
+        }
+
         try {
-            ast = new MySqlStatementParser(text, SQLParserFeature.EnableSQLBinaryOpExprGroup).parseStatement();
+            MySqlStatementParser parser = new MySqlStatementParser(text, features);
+            parser.setSelectListCache(selectListCache);
+            ast = parser.parseStatement();
         } catch (ParserException e) {
             throw new UnsupportedOperationException(e);
         }
@@ -98,6 +168,11 @@ public class SqlHolder {
 
     public String parameterize(Set<String> physicalNames, List<Object> params) {
         ensureParsed();
+
+//        if (text.equals("select @@session.tx_read_only")) {
+//            return text;
+//        }
+
         return Templates.parameterize(ast, physicalNames, params);
     }
 

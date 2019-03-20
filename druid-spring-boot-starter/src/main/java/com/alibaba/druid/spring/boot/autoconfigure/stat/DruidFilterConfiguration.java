@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ public class DruidFilterConfiguration {
 
     @Bean
     @ConfigurationProperties(FILTER_STAT_PREFIX)
-    @ConditionalOnProperty(prefix = FILTER_STAT_PREFIX, name = "enabled", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = FILTER_STAT_PREFIX, name = "enabled")
     @ConditionalOnMissingBean
     public StatFilter statFilter() {
         return new StatFilter();

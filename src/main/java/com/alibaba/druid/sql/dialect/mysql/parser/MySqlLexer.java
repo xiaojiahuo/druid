@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,15 @@ import static com.alibaba.druid.sql.parser.LayoutCharacters.EOI;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.alibaba.druid.sql.parser.*;
+import com.alibaba.druid.sql.parser.CharTypes;
+import com.alibaba.druid.sql.parser.Keywords;
+import com.alibaba.druid.sql.parser.Lexer;
+import com.alibaba.druid.sql.parser.NotAllowCommentException;
+import com.alibaba.druid.sql.parser.ParserException;
+import com.alibaba.druid.sql.parser.SQLParserFeature;
+import com.alibaba.druid.sql.parser.SymbolTable;
+import com.alibaba.druid.sql.parser.Token;
+import com.alibaba.druid.util.JdbcConstants;
 
 public class MySqlLexer extends Lexer {
     public static SymbolTable quoteTable = new SymbolTable(8192);
@@ -59,8 +67,16 @@ public class MySqlLexer extends Lexer {
         map.put("UNDO", Token.UNDO);
         map.put("SQLSTATE", Token.SQLSTATE);
         map.put("CONDITION", Token.CONDITION);
+        map.put("MOD", Token.MOD);
+        map.put("CONTAINS", Token.CONTAINS);
+        map.put("RLIKE", Token.RLIKE);
+        map.put("FULLTEXT", Token.FULLTEXT);
 
         DEFAULT_MYSQL_KEYWORDS = new Keywords(map);
+    }
+
+    {
+        dbType = JdbcConstants.MYSQL;
     }
 
     public MySqlLexer(char[] input, int inputLength, boolean skipComment){
@@ -73,7 +89,10 @@ public class MySqlLexer extends Lexer {
     }
 
     public MySqlLexer(String input, SQLParserFeature... features){
-        this(input, true, true);
+        super(input, true);
+        this.keepComments = true;
+        super.keywods = DEFAULT_MYSQL_KEYWORDS;
+
         for (SQLParserFeature feature : features) {
             config(feature, true);
         }
@@ -143,17 +162,12 @@ public class MySqlLexer extends Lexer {
     }
 
     public void scanVariable() {
-        if (ch != '@' && ch != ':' && ch != '#' && ch != '$') {
+        if (ch != ':' && ch != '#' && ch != '$') {
             throw new ParserException("illegal variable. " + info());
         }
 
         mark = pos;
         bufPos = 1;
-
-        if (charAt(pos + 1) == '@') {
-            ch = charAt(++pos);
-            bufPos++;
-        }
 
         if (charAt(pos + 1) == '`') {
             ++pos;
@@ -220,13 +234,69 @@ public class MySqlLexer extends Lexer {
         token = Token.VARIANT;
     }
 
+    protected void scanVariable_at() {
+        if (ch != '@') {
+            throw new ParserException("illegal variable. " + info());
+        }
+
+        mark = pos;
+        bufPos = 1;
+
+        if (charAt(pos + 1) == '@') {
+            ch = charAt(++pos);
+            bufPos++;
+        }
+
+        if (charAt(pos + 1) == '`') {
+            ++pos;
+            ++bufPos;
+            char ch;
+            for (;;) {
+                ch = charAt(++pos);
+
+                if (ch == '`') {
+                    bufPos++;
+                    ++pos;
+                    break;
+                } else if (ch == EOI) {
+                    throw new ParserException("illegal identifier. " + info());
+                }
+
+                bufPos++;
+                continue;
+            }
+
+            this.ch = charAt(pos);
+
+            stringVal = subString(mark, bufPos);
+            token = Token.VARIANT;
+        } else {
+            for (; ; ) {
+                ch = charAt(++pos);
+
+                if (!isIdentifierChar(ch)) {
+                    break;
+                }
+
+                bufPos++;
+                continue;
+            }
+        }
+
+        this.ch = charAt(pos);
+
+        stringVal = subString(mark, bufPos);
+        token = Token.VARIANT;
+    }
+
     public void scanIdentifier() {
         hash_lower = 0;
         hash = 0;
 
         final char first = ch;
 
-        if (ch == 'b' && charAt(pos + 1) == '\'') {
+        if ((ch == 'b' || ch == 'B' )
+                && charAt(pos + 1) == '\'') {
             int i = 2;
             int mark = pos + 2;
             for (;;++i) {
@@ -336,11 +406,97 @@ public class MySqlLexer extends Lexer {
                 token = Token.IDENTIFIER;
                 stringVal = SymbolTable.global.addSymbol(text, mark, bufPos, hash);
             }
+
         }
     }
 
+
+
     protected final void scanString() {
         scanString2();
+    }
+
+    public void skipFirstHintsOrMultiCommentAndNextToken() {
+        int starIndex = pos + 2;
+
+        for (;;) {
+            starIndex = text.indexOf('*', starIndex);
+            if (starIndex == -1 || starIndex == text.length() - 1) {
+                this.token = Token.ERROR;
+                return;
+            }
+
+            int slashIndex = starIndex + 1;
+            if (charAt(slashIndex) == '/') {
+                pos = slashIndex + 1;
+                ch = text.charAt(pos);
+                if (pos < text.length() - 6) {
+                    int pos_6 = pos + 6;
+                    char c0 = ch;
+                    char c1 = text.charAt(pos + 1);
+                    char c2 = text.charAt(pos + 2);
+                    char c3 = text.charAt(pos + 3);
+                    char c4 = text.charAt(pos + 4);
+                    char c5 = text.charAt(pos + 5);
+                    char c6 = text.charAt(pos_6);
+                    if (c0 == 's' && c1 == 'e' && c2 == 'l' && c3 == 'e' && c4 == 'c' && c5 == 't' && c6 == ' ') {
+                        this.comments = null;
+                        reset(pos_6, ' ', Token.SELECT);
+                        return;
+                    }
+
+                    if (c0 == 'i' && c1 == 'n' && c2 == 's' && c3 == 'e' && c4 == 'r' && c5 == 't' && c6 == ' ') {
+                        this.comments = null;
+                        reset(pos_6, ' ', Token.INSERT);
+                        return;
+                    }
+
+                    if (c0 == 'u' && c1 == 'p' && c2 == 'd' && c3 == 'a' && c4 == 't' && c5 == 'e' && c6 == ' ') {
+                        this.comments = null;
+                        reset(pos_6, ' ', Token.UPDATE);
+                        return;
+                    }
+
+
+                    if (c0 == 'd' && c1 == 'e' && c2 == 'l' && c3 == 'e' && c4 == 't' && c5 == 'e' && c6 == ' ') {
+                        this.comments = null;
+                        reset(pos_6, ' ', Token.DELETE);
+                        return;
+                    }
+
+                    if (c0 == 'S' && c1 == 'E' && c2 == 'L' && c3 == 'E' && c4 == 'C' && c5 == 'T' && c6 == ' ') {
+                        this.comments = null;
+                        reset(pos_6, ' ', Token.SELECT);
+                        return;
+                    }
+
+                    if (c0 == 'I' && c1 == 'N' && c2 == 'S' && c3 == 'E' && c4 == 'R' && c5 == 'T' && c6 == ' ') {
+                        this.comments = null;
+                        reset(pos_6, ' ', Token.INSERT);
+                        return;
+                    }
+
+                    if (c0 == 'U' && c1 == 'P' && c2 == 'D' && c3 == 'A' && c4 == 'T' && c5 == 'E' && c6 == ' ') {
+                        this.comments = null;
+                        reset(pos_6, ' ', Token.UPDATE);
+                        return;
+                    }
+
+                    if (c0 == 'D' && c1 == 'E' && c2 == 'L' && c3 == 'E' && c4 == 'T' && c5 == 'E' && c6 == ' ') {
+                        this.comments = null;
+                        reset(pos_6, ' ', Token.DELETE);
+                        return;
+                    }
+
+                    nextToken();
+                    return;
+                } else {
+                    nextToken();
+                    return;
+                }
+            }
+            starIndex++;
+        }
     }
 
     public void scanComment() {
@@ -395,7 +551,9 @@ public class MySqlLexer extends Lexer {
                         stringVal = this.subString(mark + startHintSp, starIndex - startHintSp - mark);
                         token = Token.HINT;
                     } else {
-                        stringVal = this.subString(mark, starIndex + 2 - mark);
+                        if (!optimizedForParameterized) {
+                            stringVal = this.subString(mark, starIndex + 2 - mark);
+                        }
                         token = Token.MULTI_LINE_COMMENT;
                         commentCount++;
                         if (keepComments) {

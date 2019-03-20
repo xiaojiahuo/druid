@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,12 @@
  */
 package com.alibaba.druid.sql.dialect.sqlserver.ast.expr;
 
+import java.util.Collections;
+import java.util.List;
+
 import com.alibaba.druid.sql.ast.SQLExpr;
 import com.alibaba.druid.sql.ast.SQLName;
+import com.alibaba.druid.sql.ast.SQLObject;
 import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
 import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.SQLServerObjectImpl;
@@ -139,11 +143,20 @@ public class SQLServerObjectReferenceExpr extends SQLServerObjectImpl implements
     @Override
     public long hashCode64() {
         if (hashCode64 == 0) {
-            hashCode64 = new SQLPropertyExpr(
-                            new SQLPropertyExpr(server, database)
-                            , schema)
-                    .hashCode64();
+            if (server == null) {
+                hashCode64 = new SQLPropertyExpr(
+                        new SQLPropertyExpr(server, database)
+                        , schema)
+                        .hashCode64();
+            } else {
+                hashCode64 = new SQLPropertyExpr(database, schema)
+                        .hashCode64();
+            }
         }
         return hashCode64;
+    }
+
+    public List<SQLObject> getChildren() {
+        return Collections.<SQLObject>emptyList();
     }
 }

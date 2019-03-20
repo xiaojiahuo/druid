@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,10 +27,16 @@ import com.alibaba.druid.sql.ast.SQLExpr;
 import com.alibaba.druid.sql.ast.SQLName;
 import com.alibaba.druid.sql.ast.SQLObject;
 import com.alibaba.druid.sql.ast.SQLPartitionBy;
-import com.alibaba.druid.sql.ast.statement.*;
+import com.alibaba.druid.sql.ast.statement.SQLAlterCharacter;
+import com.alibaba.druid.sql.ast.statement.SQLAlterTableAddIndex;
+import com.alibaba.druid.sql.ast.statement.SQLAlterTableItem;
+import com.alibaba.druid.sql.ast.statement.SQLColumnDefinition;
+import com.alibaba.druid.sql.ast.statement.SQLCreateTableStatement;
+import com.alibaba.druid.sql.ast.statement.SQLSelect;
+import com.alibaba.druid.sql.ast.statement.SQLTableElement;
+import com.alibaba.druid.sql.ast.statement.SQLUnique;
 import com.alibaba.druid.sql.dialect.mysql.ast.MySqlKey;
 import com.alibaba.druid.sql.dialect.mysql.ast.MySqlObjectImpl;
-import com.alibaba.druid.sql.dialect.mysql.ast.MySqlPrimaryKey;
 import com.alibaba.druid.sql.dialect.mysql.ast.MySqlUnique;
 import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlASTVisitor;
 import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlOutputVisitor;
@@ -41,16 +47,13 @@ import com.alibaba.druid.util.JdbcConstants;
 public class MySqlCreateTableStatement extends SQLCreateTableStatement implements MySqlStatement {
 
     private Map<String, SQLObject> tableOptions = new LinkedHashMap<String, SQLObject>();
-
-    private SQLPartitionBy  partitioning;
-
     private List<SQLCommentHint>   hints        = new ArrayList<SQLCommentHint>();
-
     private List<SQLCommentHint>   optionHints  = new ArrayList<SQLCommentHint>();
-
-
-    
     private SQLName                tableGroup;
+
+    protected SQLPartitionBy dbPartitionBy;
+    protected SQLPartitionBy tablePartitionBy;
+    protected SQLExpr        tbpartitions;
 
     public MySqlCreateTableStatement(){
         super (JdbcConstants.MYSQL);
@@ -70,18 +73,6 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
         this.tableOptions = tableOptions;
     }
 
-    public SQLPartitionBy getPartitioning() {
-        return partitioning;
-    }
-
-    public void setPartitioning(SQLPartitionBy partitioning) {
-        this.partitioning = partitioning;
-    }
-
-    public Map<String, SQLObject> getTableOptions() {
-        return tableOptions;
-    }
-
     @Deprecated
     public SQLSelect getQuery() {
         return select;
@@ -97,7 +88,7 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
         if (visitor instanceof MySqlASTVisitor) {
             accept0((MySqlASTVisitor) visitor);
         } else {
-            throw new IllegalArgumentException("not support visitor type : " + visitor.getClass().getName());
+            super.accept0(visitor);
         }
     }
 
@@ -208,8 +199,8 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
         } else if (item instanceof MySqlAlterTableChangeColumn) {
             return apply((MySqlAlterTableChangeColumn) item);
 
-        } else if (item instanceof MySqlAlterTableCharacter) {
-            return apply((MySqlAlterTableCharacter) item);
+        } else if (item instanceof SQLAlterCharacter) {
+            return apply((SQLAlterCharacter) item);
 
         } else if (item instanceof MySqlAlterTableModifyColumn) {
             return apply((MySqlAlterTableModifyColumn) item);
@@ -250,7 +241,7 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
         return true;
     }
 
-    public boolean apply(MySqlAlterTableCharacter item) {
+    public boolean apply(SQLAlterCharacter item) {
         SQLExpr charset = item.getCharacterSet();
         if (charset != null) {
             this.tableOptions.put("CHARACTER SET", charset);
@@ -407,5 +398,38 @@ public class MySqlCreateTableStatement extends SQLCreateTableStatement implement
         MySqlCreateTableStatement x = new MySqlCreateTableStatement();
         cloneTo(x);
         return x;
+    }
+
+    public SQLPartitionBy getDbPartitionBy() {
+        return dbPartitionBy;
+    }
+
+    public void setDbPartitionBy(SQLPartitionBy x) {
+        if (x != null) {
+            x.setParent(this);
+        }
+        this.dbPartitionBy = x;
+    }
+
+    public SQLPartitionBy getTablePartitionBy() {
+        return tablePartitionBy;
+    }
+
+    public void setTablePartitionBy(SQLPartitionBy x) {
+        if (x != null) {
+            x.setParent(this);
+        }
+        this.tablePartitionBy = x;
+    }
+
+    public SQLExpr getTbpartitions() {
+        return tbpartitions;
+    }
+
+    public void setTbpartitions(SQLExpr x) {
+        if (x != null) {
+            x.setParent(this);
+        }
+        this.tbpartitions = x;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,17 @@
  */
 package com.alibaba.druid.sql.ast.statement;
 
-import com.alibaba.druid.sql.ast.*;
-import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
-import com.alibaba.druid.sql.visitor.SQLASTVisitor;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import com.alibaba.druid.sql.ast.SQLDataType;
+import com.alibaba.druid.sql.ast.SQLName;
+import com.alibaba.druid.sql.ast.SQLObjectWithDataType;
+import com.alibaba.druid.sql.ast.SQLParameter;
+import com.alibaba.druid.sql.ast.SQLStatement;
+import com.alibaba.druid.sql.ast.SQLStatementImpl;
+import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
+import com.alibaba.druid.sql.visitor.SQLASTVisitor;
 
 /**
  * Created by wenshao on 23/05/2017.
@@ -44,8 +49,13 @@ public class SQLCreateFunctionStatement extends SQLStatementImpl implements SQLC
     // for mysql
 
     private String             comment;
-
     private boolean            deterministic  = false;
+    private boolean            parallelEnable;
+    private boolean            aggregate;
+    private SQLName            using;
+    private boolean            pipelined;
+    private boolean            resultCache;
+    private String             wrappedSource;
 
     public SQLCreateFunctionStatement clone() {
         SQLCreateFunctionStatement x = new SQLCreateFunctionStatement();
@@ -75,6 +85,7 @@ public class SQLCreateFunctionStatement extends SQLStatementImpl implements SQLC
         }
         x.comment = comment;
         x.deterministic = deterministic;
+        x.pipelined = pipelined;
 
         return x;
     }
@@ -209,5 +220,54 @@ public class SQLCreateFunctionStatement extends SQLStatementImpl implements SQLC
     @Override
     public void setDataType(SQLDataType dataType) {
         this.setReturnDataType(dataType);
+    }
+
+
+    public boolean isParallelEnable() {
+        return parallelEnable;
+    }
+
+    public void setParallelEnable(boolean parallel_enable) {
+        this.parallelEnable = parallel_enable;
+    }
+
+    public boolean isAggregate() {
+        return aggregate;
+    }
+
+    public void setAggregate(boolean aggregate) {
+        this.aggregate = aggregate;
+    }
+
+    public SQLName getUsing() {
+        return using;
+    }
+
+    public void setUsing(SQLName using) {
+        this.using = using;
+    }
+
+    public boolean isPipelined() {
+        return pipelined;
+    }
+
+    public void setPipelined(boolean pipelined) {
+        this.pipelined = pipelined;
+    }
+
+    public boolean isResultCache() {
+        return resultCache;
+    }
+
+    public void setResultCache(boolean resultCache) {
+        this.resultCache = resultCache;
+    }
+
+    public String getWrappedSource() {
+        return wrappedSource;
+    }
+
+    public void setWrappedSource(String wrappedSource) {
+        this.wrappedSource = wrappedSource;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,26 @@
  */
 package com.alibaba.druid.sql.parser;
 
+import java.nio.charset.Charset;
+
 /**
  * @author wenshao[szujobs@hotmail.com]
  */
 public class SymbolTable {
-    public static SymbolTable global = new SymbolTable(8192);
+    private static final Charset UTF8 = Charset.forName("UTF-8");
+    private static final boolean JVM_16;
+
+    static {
+        String version = null;
+        try {
+            version = System.getProperty("java.specification.version");
+        } catch (Throwable error) {
+            // skip
+        }
+        JVM_16 = "1.6".equals(version);
+    }
+
+    public static SymbolTable global = new SymbolTable(32768);
 
     private final Entry[] entries;
     private final int      indexMask;
@@ -27,19 +42,38 @@ public class SymbolTable {
     public SymbolTable(int tableSize){
         this.indexMask = tableSize - 1;
         this.entries = new Entry[tableSize];
-
-//        this.addSymbol("id", 0, 2, "id".hashCode());
     }
-
-
 
     public String addSymbol(String buffer, int offset, int len, long hash) {
         final int bucket = ((int) hash) & indexMask;
 
         Entry entry = entries[bucket];
         if (entry != null) {
-            if (hash == entry.hash //
-                    && len == entry.len) {
+            if (hash == entry.hash) {
+                return entry.value;
+            }
+
+            String str = JVM_16
+                    ? subString(buffer, offset, len)
+                    : buffer.substring(offset, offset + len);
+
+            return str;
+        }
+
+        String str = JVM_16
+                ? subString(buffer, offset, len)
+                : buffer.substring(offset, offset + len);
+        entry = new Entry(hash, len, str);
+        entries[bucket] = entry;
+        return str;
+    }
+
+    public String addSymbol(byte[] buffer, int offset, int len, long hash) {
+        final int bucket = ((int) hash) & indexMask;
+
+        Entry entry = entries[bucket];
+        if (entry != null) {
+            if (hash == entry.hash) {
                 return entry.value;
             }
 
@@ -54,10 +88,42 @@ public class SymbolTable {
         return str;
     }
 
+    public String addSymbol(String symbol, long hash) {
+        final int bucket = ((int) hash) & indexMask;
+
+        Entry entry = entries[bucket];
+        if (entry != null) {
+            if (hash == entry.hash) {
+                return entry.value;
+            }
+
+            return symbol;
+        }
+
+        entry = new Entry(hash, symbol.length(), symbol);
+        entries[bucket] = entry;
+        return symbol;
+    }
+
+    public String findSymbol(long hash) {
+        final int bucket = ((int) hash) & indexMask;
+        Entry entry = entries[bucket];
+        if (entry != null && entry.hash == hash) {
+            return entry.value;
+        }
+        return null;
+    }
+
     private static String subString(String src, int offset, int len) {
         char[] chars = new char[len];
         src.getChars(offset, offset + len, chars, 0);
         return new String(chars);
+    }
+
+    private static String subString(byte[] bytes, int from, int len) {
+        byte[] strBytes = new byte[len];
+        System.arraycopy(bytes, from, strBytes, 0, len);
+        return new String(strBytes, UTF8);
     }
 
     private static class Entry {

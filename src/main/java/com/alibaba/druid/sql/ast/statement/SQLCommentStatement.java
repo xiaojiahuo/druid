@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,12 @@
  */
 package com.alibaba.druid.sql.ast.statement;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.alibaba.druid.sql.ast.SQLExpr;
 import com.alibaba.druid.sql.ast.SQLName;
-import com.alibaba.druid.sql.ast.SQLStatement;
+import com.alibaba.druid.sql.ast.SQLObject;
 import com.alibaba.druid.sql.ast.SQLStatementImpl;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
 
@@ -27,9 +30,9 @@ public class SQLCommentStatement extends SQLStatementImpl {
         TABLE, COLUMN
     }
 
-    private SQLName on;
-    private Type    type;
-    private SQLExpr comment;
+    private SQLExprTableSource on;
+    private Type               type;
+    private SQLExpr            comment;
 
     public SQLExpr getComment() {
         return comment;
@@ -47,12 +50,19 @@ public class SQLCommentStatement extends SQLStatementImpl {
         this.type = type;
     }
 
-    public SQLName getOn() {
+    public SQLExprTableSource getOn() {
         return on;
     }
 
-    public void setOn(SQLName on) {
+    public void setOn(SQLExprTableSource on) {
+        if (on != null) {
+            on.setParent(this);
+        }
         this.on = on;
+    }
+
+    public void setOn(SQLName on) {
+        this.setOn(new SQLExprTableSource(on));
     }
 
     @Override
@@ -64,4 +74,15 @@ public class SQLCommentStatement extends SQLStatementImpl {
         visitor.endVisit(this);
     }
 
+    @Override
+    public List<SQLObject> getChildren() {
+        List<SQLObject> children = new ArrayList<SQLObject>();
+        if (on != null) {
+            children.add(on);
+        }
+        if (comment != null) {
+            children.add(comment);
+        }
+        return children;
+    }
 }

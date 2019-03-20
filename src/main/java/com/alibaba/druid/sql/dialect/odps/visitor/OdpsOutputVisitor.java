@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,42 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.alibaba.druid.sql.ast.*;
+import com.alibaba.druid.sql.ast.SQLCommentHint;
+import com.alibaba.druid.sql.ast.SQLDataType;
+import com.alibaba.druid.sql.ast.SQLExpr;
+import com.alibaba.druid.sql.ast.SQLName;
+import com.alibaba.druid.sql.ast.SQLOrderBy;
+import com.alibaba.druid.sql.ast.SQLSetQuantifier;
+import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.ast.expr.SQLCharExpr;
-import com.alibaba.druid.sql.ast.statement.*;
+import com.alibaba.druid.sql.ast.statement.SQLAlterTableRenameColumn;
+import com.alibaba.druid.sql.ast.statement.SQLAssignItem;
+import com.alibaba.druid.sql.ast.statement.SQLColumnDefinition;
+import com.alibaba.druid.sql.ast.statement.SQLCreateTableStatement;
+import com.alibaba.druid.sql.ast.statement.SQLJoinTableSource;
 import com.alibaba.druid.sql.ast.statement.SQLJoinTableSource.JoinType;
-import com.alibaba.druid.sql.dialect.odps.ast.*;
+import com.alibaba.druid.sql.ast.statement.SQLSelect;
+import com.alibaba.druid.sql.ast.statement.SQLSelectOrderByItem;
+import com.alibaba.druid.sql.ast.statement.SQLSubqueryTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLTableElement;
+import com.alibaba.druid.sql.ast.statement.SQLTableSource;
+import com.alibaba.druid.sql.dialect.hive.ast.HiveInsert;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsAddStatisticStatement;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsAnalyzeTableStatement;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsCreateTableStatement;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsGrantStmt;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsInsertStatement;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsListStmt;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsReadStatement;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsRemoveStatisticStatement;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsSelectQueryBlock;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsSetLabelStatement;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsShowGrantsStmt;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsShowPartitionsStmt;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsShowStatisticStmt;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsStatisticClause;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsUDTFSQLSelectItem;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsValuesTableSource;
 import com.alibaba.druid.sql.visitor.SQLASTOutputVisitor;
 import com.alibaba.druid.util.JdbcConstants;
 
@@ -139,11 +170,11 @@ public class OdpsOutputVisitor extends SQLASTOutputVisitor implements OdpsASTVis
             print(')');
         }
 
-        List<SQLName> sortedBy = x.getSortedBy();
+        List<SQLSelectOrderByItem> sortedBy = x.getSortedBy();
         if (sortedBy.size() > 0) {
             println();
             print0(ucase ? "SORTED BY (" : "sorted by (");
-            printAndAccept(sortedBy, ",");
+            printAndAccept(sortedBy, ", ");
             print(')');
         }
 
@@ -159,6 +190,20 @@ public class OdpsOutputVisitor extends SQLASTOutputVisitor implements OdpsASTVis
             println();
             print0(ucase ? "LIFECYCLE " : "lifecycle ");
             x.getLifecycle().accept(this);
+        }
+
+        SQLExpr storedBy = x.getStoredBy();
+        if (storedBy != null) {
+            println();
+            print0(ucase ? "STORED BY " : "stored by ");
+            storedBy.accept(this);
+        }
+
+        SQLExpr storedAs = x.getStoredAs();
+        if (storedAs != null) {
+            println();
+            print0(ucase ? "STORED AS " : "stored as ");
+            storedAs.accept(this);
         }
 
         if (x.getSelect() != null) {
@@ -209,7 +254,7 @@ public class OdpsOutputVisitor extends SQLASTOutputVisitor implements OdpsASTVis
         }
 
         for (int i = 0; i < x.getItems().size(); ++i) {
-            OdpsInsert insert = x.getItems().get(i);
+            HiveInsert insert = x.getItems().get(i);
             if (i != 0) {
                 println();
             }
@@ -219,12 +264,12 @@ public class OdpsOutputVisitor extends SQLASTOutputVisitor implements OdpsASTVis
     }
 
     @Override
-    public void endVisit(OdpsInsert x) {
+    public void endVisit(HiveInsert x) {
 
     }
 
     @Override
-    public boolean visit(OdpsInsert x) {
+    public boolean visit(HiveInsert x) {
         if (x.hasBeforeComment()) {
             printlnComments(x.getBeforeCommentsDirect());
         }
@@ -440,7 +485,7 @@ public class OdpsOutputVisitor extends SQLASTOutputVisitor implements OdpsASTVis
 
         print0(ucase ? "SELECT " : "select ");
 
-        List<SQLHint> hints = x.getHintsDirect();
+        List<SQLCommentHint> hints = x.getHintsDirect();
         if (hints != null) {
             printAndAccept(hints, " ");
             print(' ');
@@ -796,26 +841,6 @@ public class OdpsOutputVisitor extends SQLASTOutputVisitor implements OdpsASTVis
             x.getExpire().accept(this);
         }
 
-        return false;
-    }
-
-    @Override
-    public void endVisit(OdpsLateralViewTableSource x) {
-        
-    }
-
-    @Override
-    public boolean visit(OdpsLateralViewTableSource x) {
-        x.getTableSource().accept(this);
-        this.indentCount++;
-        println();
-        print0(ucase ? "LATERAL VIEW " : "lateral view ");
-        x.getMethod().accept(this);
-        print(' ');
-        print0(x.getAlias());
-        print0(ucase ? " AS " : " as ");
-        printAndAccept(x.getColumns(), ", ");
-        this.indentCount--;
         return false;
     }
     

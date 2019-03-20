@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,17 @@
 package com.alibaba.druid.sql.ast.statement;
 
 import com.alibaba.druid.sql.SQLUtils;
-import com.alibaba.druid.sql.ast.*;
+import com.alibaba.druid.sql.ast.SQLDataType;
+import com.alibaba.druid.sql.ast.SQLExpr;
+import com.alibaba.druid.sql.ast.SQLObjectImpl;
+import com.alibaba.druid.sql.ast.SQLReplaceable;
 import com.alibaba.druid.sql.ast.expr.SQLAllColumnExpr;
 import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
 import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
+import com.alibaba.druid.sql.dialect.oracle.ast.OracleSQLObject;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
 import com.alibaba.druid.util.FnvHash;
+import com.alibaba.druid.util.JdbcConstants;
 
 public class SQLSelectItem extends SQLObjectImpl implements SQLReplaceable {
 
@@ -161,7 +166,7 @@ public class SQLSelectItem extends SQLObjectImpl implements SQLReplaceable {
 
     @Override
     public boolean replace(SQLExpr expr, SQLExpr target) {
-        if (expr == expr) {
+        if (this.expr == expr) {
             setExpr(target);
             return true;
         }
@@ -220,5 +225,13 @@ public class SQLSelectItem extends SQLObjectImpl implements SQLReplaceable {
         }
 
         return false;
+    }
+
+    public String toString() {
+        String dbType = null;
+        if (parent instanceof OracleSQLObject) {
+            dbType = JdbcConstants.ORACLE;
+        }
+        return SQLUtils.toSQLString(this, dbType);
     }
 }

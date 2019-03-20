@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -206,7 +206,7 @@ public class DruidDataSourceStatLoggerImpl extends DruidDataSourceStatLoggerAdap
 
                 if (sqlStat.getFetchRowCount() > 0) {
                     sqlStatMap.put("fetchRowCount", sqlStat.getFetchRowCount());
-                    sqlStatMap.put("fetchRowCount", sqlStat.getFetchRowCountMax());
+                    sqlStatMap.put("fetchRowCountMax", sqlStat.getFetchRowCountMax());
                     sqlStatMap.put("fetchRowHistogram", rtrim(sqlStat.getFetchRowHistogram()));
                 }
 

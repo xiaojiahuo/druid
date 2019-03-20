@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,34 @@ package com.alibaba.druid.sql;
 import java.util.List;
 import java.util.Map;
 
-import com.alibaba.druid.sql.ast.*;
-import com.alibaba.druid.sql.ast.expr.*;
-import com.alibaba.druid.sql.ast.statement.*;
+import com.alibaba.druid.sql.ast.SQLExpr;
+import com.alibaba.druid.sql.ast.SQLName;
+import com.alibaba.druid.sql.ast.SQLObject;
+import com.alibaba.druid.sql.ast.SQLReplaceable;
+import com.alibaba.druid.sql.ast.SQLStatement;
+import com.alibaba.druid.sql.ast.expr.SQLBinaryOpExpr;
+import com.alibaba.druid.sql.ast.expr.SQLBinaryOperator;
+import com.alibaba.druid.sql.ast.expr.SQLInListExpr;
+import com.alibaba.druid.sql.ast.expr.SQLLiteralExpr;
+import com.alibaba.druid.sql.ast.expr.SQLUnaryExpr;
+import com.alibaba.druid.sql.ast.expr.SQLUnaryOperator;
+import com.alibaba.druid.sql.ast.expr.SQLVariantRefExpr;
+import com.alibaba.druid.sql.ast.statement.SQLCreateTableStatement;
+import com.alibaba.druid.sql.ast.statement.SQLDeleteStatement;
+import com.alibaba.druid.sql.ast.statement.SQLSelectItem;
+import com.alibaba.druid.sql.ast.statement.SQLSelectOrderByItem;
+import com.alibaba.druid.sql.ast.statement.SQLSelectQuery;
+import com.alibaba.druid.sql.ast.statement.SQLSelectQueryBlock;
+import com.alibaba.druid.sql.ast.statement.SQLSelectStatement;
+import com.alibaba.druid.sql.ast.statement.SQLSetStatement;
+import com.alibaba.druid.sql.ast.statement.SQLUpdateSetItem;
+import com.alibaba.druid.sql.ast.statement.SQLUpdateStatement;
 import com.alibaba.druid.sql.dialect.db2.visitor.DB2OutputVisitor;
 import com.alibaba.druid.sql.dialect.db2.visitor.DB2SchemaStatVisitor;
+import com.alibaba.druid.sql.dialect.h2.visitor.H2OutputVisitor;
+import com.alibaba.druid.sql.dialect.h2.visitor.H2SchemaStatVisitor;
+import com.alibaba.druid.sql.dialect.hive.visitor.HiveOutputVisitor;
+import com.alibaba.druid.sql.dialect.hive.visitor.HiveSchemaStatVisitor;
 import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlOutputVisitor;
 import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlSchemaStatVisitor;
 import com.alibaba.druid.sql.dialect.odps.visitor.OdpsOutputVisitor;
@@ -34,15 +57,32 @@ import com.alibaba.druid.sql.dialect.postgresql.visitor.PGOutputVisitor;
 import com.alibaba.druid.sql.dialect.postgresql.visitor.PGSchemaStatVisitor;
 import com.alibaba.druid.sql.dialect.sqlserver.visitor.SQLServerOutputVisitor;
 import com.alibaba.druid.sql.dialect.sqlserver.visitor.SQLServerSchemaStatVisitor;
-import com.alibaba.druid.sql.parser.*;
+import com.alibaba.druid.sql.parser.Lexer;
+import com.alibaba.druid.sql.parser.ParserException;
+import com.alibaba.druid.sql.parser.SQLExprParser;
+import com.alibaba.druid.sql.parser.SQLParserFeature;
+import com.alibaba.druid.sql.parser.SQLParserUtils;
+import com.alibaba.druid.sql.parser.SQLStatementParser;
+import com.alibaba.druid.sql.parser.Token;
 import com.alibaba.druid.sql.visitor.SQLASTOutputVisitor;
 import com.alibaba.druid.sql.visitor.SchemaStatVisitor;
 import com.alibaba.druid.sql.visitor.VisitorFeature;
 import com.alibaba.druid.support.logging.Log;
 import com.alibaba.druid.support.logging.LogFactory;
-import com.alibaba.druid.util.*;
+import com.alibaba.druid.util.FnvHash;
+import com.alibaba.druid.util.JdbcConstants;
+import com.alibaba.druid.util.MySqlUtils;
+import com.alibaba.druid.util.OracleUtils;
+import com.alibaba.druid.util.PGUtils;
+import com.alibaba.druid.util.StringUtils;
+import com.alibaba.druid.util.Utils;
 
 public class SQLUtils {
+    private final static SQLParserFeature[] FORMAT_DEFAULT_FEATURES = {
+            SQLParserFeature.KeepComments,
+            SQLParserFeature.EnableSQLBinaryOpExprGroup
+    };
+
     public static FormatOption DEFAULT_FORMAT_OPTION = new FormatOption(true, true);
     public static FormatOption DEFAULT_LCASE_FORMAT_OPTION
             = new FormatOption(false, true);
@@ -123,8 +163,16 @@ public class SQLUtils {
         return format(sql, JdbcConstants.ODPS);
     }
 
+    public static String formatHive(String sql) {
+        return format(sql, JdbcConstants.HIVE);
+    }
+
     public static String formatOdps(String sql, FormatOption option) {
         return format(sql, JdbcConstants.ODPS, option);
+    }
+
+    public static String formatHive(String sql, FormatOption option) {
+        return format(sql, JdbcConstants.HIVE, option);
     }
 
     public static String formatSQLServer(String sql) {
@@ -234,12 +282,12 @@ public class SQLUtils {
 
     public static String format(String sql, String dbType, List<Object> parameters, FormatOption option) {
         try {
-            SQLStatementParser parser = SQLParserUtils.createSQLStatementParser(sql, dbType, true);
-            parser.setKeepComments(true);
-
+            SQLStatementParser parser = SQLParserUtils.createSQLStatementParser(sql, dbType, FORMAT_DEFAULT_FEATURES);
             List<SQLStatement> statementList = parser.parseStatementList();
-
             return toSQLString(statementList, dbType, parameters, option);
+        } catch (ClassCastException ex) {
+            LOG.warn("format error, dbType : " + dbType, ex);
+            return sql;
         } catch (ParserException ex) {
             LOG.warn("format error", ex);
             return sql;
@@ -282,7 +330,12 @@ public class SQLUtils {
             visitor.setTableMapping(tableMapping);
         }
 
-        boolean printStmtSeperator = !JdbcConstants.ORACLE.equals(dbType);
+        boolean printStmtSeperator;
+        if (JdbcConstants.SQL_SERVER.equals(dbType)) {
+            printStmtSeperator = false;
+        } else {
+            printStmtSeperator = !JdbcConstants.ORACLE.equals(dbType);
+        }
 
         for (int i = 0, size = statementList.size(); i < size; i++) {
             SQLStatement stmt = statementList.get(i);
@@ -356,8 +409,7 @@ public class SQLUtils {
         }
 
         if (JdbcConstants.MYSQL.equals(dbType) //
-                || JdbcConstants.MARIADB.equals(dbType) //
-                || JdbcConstants.H2.equals(dbType)) {
+                || JdbcConstants.MARIADB.equals(dbType)) {
             return new MySqlOutputVisitor(out);
         }
 
@@ -377,6 +429,18 @@ public class SQLUtils {
             return new OdpsOutputVisitor(out);
         }
 
+        if (JdbcConstants.H2.equals(dbType)) {
+            return new H2OutputVisitor(out);
+        }
+
+        if (JdbcConstants.HIVE.equals(dbType)) {
+            return new HiveOutputVisitor(out);
+        }
+
+        if (JdbcConstants.ELASTIC_SEARCH.equals(dbType)) {
+            return new MySqlOutputVisitor(out);
+        }
+
         return new SQLASTOutputVisitor(out, dbType);
     }
 
@@ -391,8 +455,7 @@ public class SQLUtils {
         }
 
         if (JdbcConstants.MYSQL.equals(dbType) || //
-                JdbcConstants.MARIADB.equals(dbType) || //
-                JdbcConstants.H2.equals(dbType)) {
+                JdbcConstants.MARIADB.equals(dbType)) {
             return new MySqlSchemaStatVisitor();
         }
 
@@ -410,6 +473,18 @@ public class SQLUtils {
 
         if (JdbcConstants.ODPS.equals(dbType)) {
             return new OdpsSchemaStatVisitor();
+        }
+
+        if (JdbcConstants.H2.equals(dbType)) {
+            return new H2SchemaStatVisitor();
+        }
+
+        if (JdbcConstants.HIVE.equals(dbType)) {
+            return new HiveSchemaStatVisitor();
+        }
+
+        if (JdbcConstants.ELASTIC_SEARCH.equals(dbType)) {
+            return new MySqlSchemaStatVisitor();
         }
 
         return new SchemaStatVisitor();
@@ -431,6 +506,24 @@ public class SQLUtils {
             throw new ParserException("syntax error. " + sql);
         }
         return stmtList;
+    }
+
+    public static SQLStatement parseSingleStatement(String sql, String dbType, SQLParserFeature... features) {
+        SQLStatementParser parser = SQLParserUtils.createSQLStatementParser(sql, dbType, features);
+        List<SQLStatement> stmtList = parser.parseStatementList();
+
+        if (stmtList.size() > 1) {
+            throw new ParserException(" Mutil-Statment be found.");
+        }
+
+        if (parser.getLexer().token() != Token.EOF) {
+            throw new ParserException("syntax error. " + sql);
+        }
+        return stmtList.get(0);
+    }
+
+    public static SQLStatement parseSingleMysqlStatement(String sql) {
+        return parseSingleStatement(sql, JdbcConstants.MYSQL);
     }
 
     /**
@@ -789,6 +882,9 @@ public class SQLUtils {
             char x0 = name.charAt(name.length() - 1);
             if ((c0 == '"' && x0 == '"') || (c0 == '`' && x0 == '`')) {
                 String normalizeName = name.substring(1, name.length() - 1);
+                if (c0 == '`') {
+                    normalizeName = normalizeName.replaceAll("`\\.`", ".");
+                }
 
                 if (JdbcConstants.ORACLE.equals(dbType)) {
                     if (OracleUtils.isKeyword(normalizeName)) {
@@ -798,7 +894,8 @@ public class SQLUtils {
                     if (MySqlUtils.isKeyword(normalizeName)) {
                         return name;
                     }
-                } else if (JdbcConstants.POSTGRESQL.equals(dbType)) {
+                } else if (JdbcConstants.POSTGRESQL.equals(dbType)
+                        || JdbcConstants.ENTERPRISEDB.equals(dbType)) {
                     if (PGUtils.isKeyword(normalizeName)) {
                         return name;
                     }
@@ -896,7 +993,7 @@ public class SQLUtils {
      * @return
      */
     public static String sort(String sql, String dbType) {
-        List stmtList = SQLUtils.parseStatements(sql, JdbcConstants.ORACLE);
+        List<SQLStatement> stmtList = SQLUtils.parseStatements(sql, JdbcConstants.ORACLE);
         SQLCreateTableStatement.sort(stmtList);
         return SQLUtils.toSQLString(stmtList, dbType);
     }

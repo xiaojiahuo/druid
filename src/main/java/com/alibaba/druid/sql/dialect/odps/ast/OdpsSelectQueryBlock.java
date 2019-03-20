@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,9 @@
 package com.alibaba.druid.sql.dialect.odps.ast;
 
 import java.util.ArrayList;
-import java.util.List;
 
 import com.alibaba.druid.sql.SQLUtils;
 import com.alibaba.druid.sql.ast.SQLExpr;
-import com.alibaba.druid.sql.ast.SQLHint;
 import com.alibaba.druid.sql.ast.SQLLimit;
 import com.alibaba.druid.sql.ast.SQLOrderBy;
 import com.alibaba.druid.sql.ast.expr.SQLIntegerExpr;
@@ -28,14 +26,15 @@ import com.alibaba.druid.sql.ast.statement.SQLSelectOrderByItem;
 import com.alibaba.druid.sql.ast.statement.SQLSelectQueryBlock;
 import com.alibaba.druid.sql.dialect.odps.visitor.OdpsASTVisitor;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
+import com.alibaba.druid.util.JdbcConstants;
 
 public class OdpsSelectQueryBlock extends SQLSelectQueryBlock {
 
     private SQLOrderBy orderBy;
 
-    protected List<SQLHint> hints;
-
     public OdpsSelectQueryBlock(){
+        dbType = JdbcConstants.ODPS;
+
         distributeBy = new ArrayList<SQLExpr>();
         sortBy = new ArrayList<SQLSelectOrderByItem>(2);
     }
@@ -47,8 +46,6 @@ public class OdpsSelectQueryBlock extends SQLSelectQueryBlock {
     public void setOrderBy(SQLOrderBy orderBy) {
         this.orderBy = orderBy;
     }
-
-
 
     @Override
     public int hashCode() {
@@ -69,21 +66,6 @@ public class OdpsSelectQueryBlock extends SQLSelectQueryBlock {
             if (other.limit != null) return false;
         } else if (!limit.equals(other.limit)) return false;
         return true;
-    }
-
-    public List<SQLHint> getHintsDirect() {
-        return hints;
-    }
-
-    public List<SQLHint> getHints() {
-        if (hints == null) {
-            hints = new ArrayList<SQLHint>(2);
-        }
-        return hints;
-    }
-
-    public void setHints(List<SQLHint> hints) {
-        this.hints = hints;
     }
 
     @Override

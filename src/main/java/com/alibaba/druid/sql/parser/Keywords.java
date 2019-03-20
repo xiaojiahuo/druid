@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,11 @@
  */
 package com.alibaba.druid.sql.parser;
 
-import com.alibaba.druid.sql.SQLUtils;
-import com.alibaba.druid.util.JdbcUtils;
-import com.alibaba.druid.util.Utils;
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+
+import com.alibaba.druid.util.Utils;
 
 /**
  * @author wenshao [szujobs@hotmail.com]
@@ -160,7 +158,8 @@ public class Keywords {
         map.put("FETCH", Token.FETCH);
         map.put("OUT", Token.OUT);
         map.put("INOUT", Token.INOUT);
-        
+        map.put("LIMIT", Token.LIMIT);
+
         DEFAULT_KEYWORDS = new Keywords(map);
 
         Map<String, Token> sqlitemap = new HashMap<String, Token>();
@@ -193,13 +192,13 @@ public class Keywords {
         }
     }
 
-    public Token getKeyword(long hash) {
-        int index = Arrays.binarySearch(hashArray, hash);
-        if (index < 0) {
-            return null;
-        }
-        return tokens[index];
+public Token getKeyword(long hash) {
+    int index = Arrays.binarySearch(hashArray, hash);
+    if (index < 0) {
+        return null;
     }
+    return tokens[index];
+}
 
     public Token getKeyword(String key) {
         long k = Utils.fnv_64_lower(key);

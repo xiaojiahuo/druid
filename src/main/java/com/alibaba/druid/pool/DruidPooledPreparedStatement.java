@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,6 @@ import java.util.Calendar;
 import com.alibaba.druid.pool.PreparedStatementPool.MethodType;
 import com.alibaba.druid.support.logging.Log;
 import com.alibaba.druid.support.logging.LogFactory;
-import com.alibaba.druid.util.JdbcConstants;
 import com.alibaba.druid.util.OracleUtils;
 
 /**
@@ -195,7 +194,7 @@ public class DruidPooledPreparedStatement extends DruidPooledStatement implement
                     currentFetchSize = defaultFetchSize;
                 }
             } catch (Exception e) {
-                this.conn.handleException(e);
+                this.conn.handleException(e, null);
             }
         }
 
@@ -218,7 +217,7 @@ public class DruidPooledPreparedStatement extends DruidPooledStatement implement
     public ResultSet executeQuery() throws SQLException {
         checkOpen();
 
-        incrementExecuteCount();
+        incrementExecuteQueryCount();
         transactionRecord(sql);
 
         oracleSetRowPrefetch();
@@ -236,6 +235,8 @@ public class DruidPooledPreparedStatement extends DruidPooledStatement implement
 
             return poolableResultSet;
         } catch (Throwable t) {
+            errorCheck(t);
+
             throw checkException(t);
         } finally {
             conn.afterExecute();
@@ -246,13 +247,15 @@ public class DruidPooledPreparedStatement extends DruidPooledStatement implement
     public int executeUpdate() throws SQLException {
         checkOpen();
 
-        incrementExecuteCount();
+        incrementExecuteUpdateCount();
         transactionRecord(sql);
 
         conn.beforeExecute();
         try {
             return stmt.executeUpdate();
         } catch (Throwable t) {
+            errorCheck(t);
+
             throw checkException(t);
         } finally {
             conn.afterExecute();
@@ -493,6 +496,8 @@ public class DruidPooledPreparedStatement extends DruidPooledStatement implement
         try {
             return stmt.execute();
         } catch (Throwable t) {
+            errorCheck(t);
+
             throw checkException(t);
         } finally {
             conn.afterExecute();
@@ -552,13 +557,15 @@ public class DruidPooledPreparedStatement extends DruidPooledStatement implement
     public int[] executeBatch() throws SQLException {
         checkOpen();
 
-        incrementExecuteCount();
+        incrementExecuteBatchCount();
         transactionRecord(sql);
 
         conn.beforeExecute();
         try {
             return stmt.executeBatch();
         } catch (Throwable t) {
+            errorCheck(t);
+
             throw checkException(t);
         } finally {
             conn.afterExecute();

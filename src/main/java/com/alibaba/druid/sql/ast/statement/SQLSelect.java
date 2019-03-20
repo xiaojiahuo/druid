@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.alibaba.druid.sql.SQLUtils;
-import com.alibaba.druid.sql.ast.*;
+import com.alibaba.druid.sql.ast.SQLExpr;
+import com.alibaba.druid.sql.ast.SQLHint;
+import com.alibaba.druid.sql.ast.SQLObject;
+import com.alibaba.druid.sql.ast.SQLObjectImpl;
+import com.alibaba.druid.sql.ast.SQLOrderBy;
+import com.alibaba.druid.sql.ast.SQLStatement;
+import com.alibaba.druid.sql.ast.expr.SQLAllColumnExpr;
+import com.alibaba.druid.sql.dialect.oracle.ast.OracleSQLObject;
+import com.alibaba.druid.sql.visitor.SQLASTOutputVisitor;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
+import com.alibaba.druid.util.JdbcConstants;
 
 public class SQLSelect extends SQLObjectImpl {
 
@@ -141,11 +150,43 @@ public class SQLSelect extends SQLObjectImpl {
         return true;
     }
 
+    public void output(StringBuffer buf) {
+        String dbType = null;
+
+        SQLObject parent = this.getParent();
+        if (parent instanceof SQLStatement) {
+            dbType = ((SQLStatement) parent).getDbType();
+        }
+
+        if (dbType == null && parent instanceof OracleSQLObject) {
+            dbType = JdbcConstants.ORACLE;
+        }
+
+        if (dbType == null && query instanceof SQLSelectQueryBlock) {
+            dbType = ((SQLSelectQueryBlock) query).dbType;
+        }
+
+        SQLASTOutputVisitor visitor = SQLUtils.createOutputVisitor(buf, dbType);
+        this.accept(visitor);
+    }
+
     public String toString() {
         SQLObject parent = this.getParent();
         if (parent instanceof SQLStatement) {
             String dbType = ((SQLStatement) parent).getDbType();
             
+            if (dbType != null) {
+                return SQLUtils.toSQLString(this, dbType);
+            }
+        }
+
+        if (parent instanceof OracleSQLObject) {
+            return SQLUtils.toSQLString(this, JdbcConstants.ORACLE);
+        }
+
+        if (query instanceof SQLSelectQueryBlock) {
+            String dbType = ((SQLSelectQueryBlock) query).dbType;
+
             if (dbType != null) {
                 return SQLUtils.toSQLString(this, dbType);
             }
@@ -285,5 +326,27 @@ public class SQLSelect extends SQLObjectImpl {
         }
 
         return null;
+    }
+
+    public boolean addWhere(SQLExpr where) {
+        if (where == null) {
+            return false;
+        }
+
+        if (query instanceof SQLSelectQueryBlock) {
+            ((SQLSelectQueryBlock) query).addWhere(where);
+            return true;
+        }
+
+        if (query instanceof SQLUnionQuery) {
+            SQLSelectQueryBlock queryBlock = new SQLSelectQueryBlock();
+            queryBlock.setFrom(new SQLSelect(query), "u");
+            queryBlock.addSelectItem(new SQLAllColumnExpr());
+            queryBlock.setParent(queryBlock);
+            query = queryBlock;
+            return true;
+        }
+
+        return false;
     }
 }

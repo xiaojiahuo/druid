@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
 import com.alibaba.druid.sql.ast.expr.SQLIntegerExpr;
 import com.alibaba.druid.sql.ast.expr.SQLNullExpr;
 import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
+import com.alibaba.druid.sql.ast.expr.SQLSequenceExpr;
 import com.alibaba.druid.sql.ast.statement.SQLColumnDefinition;
 import com.alibaba.druid.sql.ast.statement.SQLExprTableSource;
 import com.alibaba.druid.sql.ast.statement.SQLSelectItem;
@@ -43,7 +44,16 @@ public class SQLServerExprParser extends SQLExprParser {
     public final static long[] AGGREGATE_FUNCTIONS_CODES;
 
     static {
-        String[] strings = { "AVG", "COUNT", "MAX", "MIN", "ROW_NUMBER", "STDDEV", "SUM" };
+        String[] strings = {
+                "AVG",
+                "COUNT",
+                "FIRST_VALUE",
+                "MAX",
+                "MIN",
+                "ROW_NUMBER",
+                "STDDEV",
+                "SUM"
+        };
         AGGREGATE_FUNCTIONS_CODES = FnvHash.fnv1a_64_lower(strings, true);
         AGGREGATE_FUNCTIONS = new String[AGGREGATE_FUNCTIONS_CODES.length];
         for (String str : strings) {
@@ -89,8 +99,22 @@ public class SQLServerExprParser extends SQLExprParser {
     }
 
     public SQLExpr primaryRest(SQLExpr expr) {
-        if (lexer.token() == Token.DOTDOT) {
+        final Token token = lexer.token();
+        if (token == Token.DOTDOT) {
             expr = nameRest((SQLName) expr);
+        } else if (lexer.identifierEquals(FnvHash.Constants.VALUE)
+                && expr instanceof SQLIdentifierExpr) {
+            SQLIdentifierExpr identExpr = (SQLIdentifierExpr) expr;
+            if (identExpr.nameHashCode64() == FnvHash.Constants.NEXT) {
+                lexer.nextToken();
+                accept(Token.FOR);
+
+                SQLName name = this.name();
+                SQLSequenceExpr seq = new SQLSequenceExpr();
+                seq.setSequence(name);
+                seq.setFunction(SQLSequenceExpr.Function.NextVal);
+                expr = seq;
+            }
         }
 
         return super.primaryRest(expr);
@@ -147,7 +171,12 @@ public class SQLServerExprParser extends SQLExprParser {
                 lexer.nextToken();
             }
 
-            top.setExpr(primary());
+            if (lexer.token() == Token.LITERAL_INT) {
+                top.setExpr(lexer.integerValue().intValue());
+                lexer.nextToken();
+            } else {
+                top.setExpr(primary());
+            }
 
             if (paren) {
                 accept(Token.RPAREN);

@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,15 @@
  */
 package com.alibaba.druid.sql.ast.expr;
 
+import java.math.BigDecimal;
+
 import com.alibaba.druid.sql.ast.SQLDataType;
 import com.alibaba.druid.sql.ast.SQLDataTypeImpl;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
 import com.alibaba.druid.util.Utils;
 
-import java.io.IOException;
-import java.math.BigDecimal;
-
 public class SQLNumberExpr extends SQLNumericLiteralExpr implements SQLValuableExpr {
-    private static SQLDataType defaultDataType = new SQLDataTypeImpl("number");
+    public final static SQLDataType defaultDataType = new SQLDataTypeImpl("number");
 
     private Number number;
 
@@ -110,7 +109,10 @@ public class SQLNumberExpr extends SQLNumericLiteralExpr implements SQLValuableE
     }
 
     public SQLNumberExpr clone() {
-        return new SQLNumberExpr(number);
+        SQLNumberExpr x = new SQLNumberExpr();
+        x.chars = chars;
+        x.number = number;
+        return x;
     }
 
     public SQLDataType computeDataType() {

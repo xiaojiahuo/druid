@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,34 +19,29 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.alibaba.druid.sql.SQLUtils;
-import com.alibaba.druid.sql.ast.*;
+import com.alibaba.druid.sql.ast.SQLExpr;
+import com.alibaba.druid.sql.ast.SQLName;
 import com.alibaba.druid.sql.ast.statement.SQLSelectQueryBlock;
 import com.alibaba.druid.sql.dialect.mysql.ast.MySqlObject;
 import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlASTVisitor;
-import com.alibaba.druid.sql.dialect.oracle.ast.stmt.OracleSelectQueryBlock;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
-import oracle.sql.SQLUtil;
+import com.alibaba.druid.util.JdbcConstants;
 
 public class MySqlSelectQueryBlock extends SQLSelectQueryBlock implements MySqlObject {
-
     private boolean              hignPriority;
     private boolean              straightJoin;
-
     private boolean              smallResult;
     private boolean              bigResult;
     private boolean              bufferResult;
     private Boolean              cache;
     private boolean              calcFoundRows;
-
     private SQLName              procedureName;
     private List<SQLExpr>        procedureArgumentList;
-
-    private boolean              lockInShareMode = false;
-
-    private List<SQLCommentHint> hints;
+    private boolean              lockInShareMode;
+    private SQLName              forcePartition; // for petadata
 
     public MySqlSelectQueryBlock(){
-
+        dbType = JdbcConstants.MYSQL;
     }
 
     public MySqlSelectQueryBlock clone() {
@@ -75,25 +70,6 @@ public class MySqlSelectQueryBlock extends SQLSelectQueryBlock implements MySqlO
         x.lockInShareMode = lockInShareMode;
 
         return x;
-    }
-
-    public int getHintsSize() {
-        if (hints == null) {
-            return 0;
-        }
-
-        return hints.size();
-    }
-
-    public List<SQLCommentHint> getHints() {
-        if (hints == null) {
-            hints = new ArrayList<SQLCommentHint>(2);
-        }
-        return hints;
-    }
-
-    public void setHints(List<SQLCommentHint> hints) {
-        this.hints = hints;
     }
 
     public boolean isLockInShareMode() {
@@ -245,6 +221,7 @@ public class MySqlSelectQueryBlock extends SQLSelectQueryBlock implements MySqlO
     public void accept0(MySqlASTVisitor visitor) {
         if (visitor.visit(this)) {
             acceptChild(visitor, this.selectList);
+            acceptChild(visitor, this.forcePartition);
             acceptChild(visitor, this.from);
             acceptChild(visitor, this.where);
             acceptChild(visitor, this.groupBy);
@@ -256,6 +233,17 @@ public class MySqlSelectQueryBlock extends SQLSelectQueryBlock implements MySqlO
         }
 
         visitor.endVisit(this);
+    }
+
+    public SQLName getForcePartition() {
+        return forcePartition;
+    }
+
+    public void setForcePartition(SQLName x) {
+        if (x != null) {
+            x.setParent(this);
+        }
+        this.forcePartition = x;
     }
 
     public String toString() {

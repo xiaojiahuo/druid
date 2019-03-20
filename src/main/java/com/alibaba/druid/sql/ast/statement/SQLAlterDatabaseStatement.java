@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,11 @@
  */
 package com.alibaba.druid.sql.ast.statement;
 
+import java.util.Collections;
+import java.util.List;
+
 import com.alibaba.druid.sql.ast.SQLName;
+import com.alibaba.druid.sql.ast.SQLObject;
 import com.alibaba.druid.sql.ast.SQLStatementImpl;
 import com.alibaba.druid.sql.visitor.SQLASTVisitor;
 
@@ -24,6 +28,8 @@ public class SQLAlterDatabaseStatement extends SQLStatementImpl implements SQLAl
     private SQLName name;
 
     private boolean upgradeDataDirectoryName;
+
+    private SQLAlterCharacter character;
     
     public SQLAlterDatabaseStatement() {
         
@@ -44,6 +50,17 @@ public class SQLAlterDatabaseStatement extends SQLStatementImpl implements SQLAl
         this.name = name;
     }
 
+    public SQLAlterCharacter getCharacter() {
+        return character;
+    }
+
+    public void setCharacter(SQLAlterCharacter character) {
+        if (character != null) {
+            character.setParent(this);
+        }
+        this.character = character;
+    }
+
     public boolean isUpgradeDataDirectoryName() {
         return upgradeDataDirectoryName;
     }
@@ -58,5 +75,10 @@ public class SQLAlterDatabaseStatement extends SQLStatementImpl implements SQLAl
             acceptChild(visitor, name);
         }
         visitor.endVisit(this);
+    }
+
+    @Override
+    public List<SQLObject> getChildren() {
+        return Collections.<SQLObject>singletonList(name);
     }
 }

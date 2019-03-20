@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,12 @@
  */
 package com.alibaba.druid.sql.parser;
 
+import com.alibaba.druid.sql.ast.statement.SQLCreateTableStatement;
+import com.alibaba.druid.util.FnvHash;
+
 public class SQLParser {
-
     protected final Lexer lexer;
-
     protected String      dbType;
-
-
 
     public SQLParser(String sql, String dbType){
         this(new Lexer(sql, null, dbType), dbType);
@@ -80,8 +79,11 @@ public class SQLParser {
         }
 
         if (token == Token.IDENTIFIER) {
-            String ident = lexer.stringVal;
-            if (ident.equalsIgnoreCase("START") || ident.equalsIgnoreCase("CONNECT")) {
+            long hash = lexer.hash_lower;
+            if (hash == FnvHash.Constants.START
+                    || hash == FnvHash.Constants.CONNECT
+                    || hash == FnvHash.Constants.OFFSET
+                    || hash == FnvHash.Constants.LIMIT) {
                 if (must) {
                     throw new ParserException("illegal alias. " + lexer.info());
                 }
@@ -103,8 +105,8 @@ public class SQLParser {
 
         if (token == Token.AS) {
             lexer.nextToken();
-
-            alias = alias();
+            alias = lexer.stringVal();
+            lexer.nextToken();
 
             if (alias != null) {
                 while (lexer.token == Token.DOT) {
@@ -142,6 +144,7 @@ public class SQLParser {
                 case OUTER:
                 case DO:
                 case STORE:
+                case MOD:
                     alias = lexer.stringVal();
                     lexer.nextToken();
                     break;
@@ -325,5 +328,9 @@ public class SQLParser {
 
     public final boolean isEnabled(SQLParserFeature feature) {
         return lexer.isEnabled(feature);
+    }
+
+    protected SQLCreateTableStatement newCreateStatement() {
+        return new SQLCreateTableStatement(getDbType());
     }
 }

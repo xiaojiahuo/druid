@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import com.alibaba.druid.sql.dialect.postgresql.ast.stmt.PGSelectQueryBlock.Into
 import com.alibaba.druid.sql.dialect.postgresql.ast.stmt.PGValuesQuery;
 import com.alibaba.druid.sql.parser.ParserException;
 import com.alibaba.druid.sql.parser.SQLExprParser;
+import com.alibaba.druid.sql.parser.SQLSelectListCache;
 import com.alibaba.druid.sql.parser.SQLSelectParser;
 import com.alibaba.druid.sql.parser.Token;
 
@@ -39,6 +40,10 @@ public class PGSelectParser extends SQLSelectParser {
 
     public PGSelectParser(SQLExprParser exprParser){
         super(exprParser);
+    }
+
+    public PGSelectParser(SQLExprParser exprParser, SQLSelectListCache selectListCache){
+        super(exprParser, selectListCache);
     }
 
     public PGSelectParser(String sql){
@@ -137,22 +142,7 @@ public class PGSelectParser extends SQLSelectParser {
         parseGroupBy(queryBlock);
 
         if (lexer.token() == Token.WINDOW) {
-            lexer.nextToken();
-            PGSelectQueryBlock.WindowClause window = new PGSelectQueryBlock.WindowClause();
-            window.setName(this.expr());
-            accept(Token.AS);
-
-            for (;;) {
-                SQLExpr expr = this.createExprParser().expr();
-                window.getDefinition().add(expr);
-                if (lexer.token() == Token.COMMA) {
-                    lexer.nextToken();
-                    continue;
-                } else {
-                    break;
-                }
-            }
-            queryBlock.setWindow(window);
+            this.parseWindow(queryBlock);
         }
 
         queryBlock.setOrderBy(this.createExprParser().parseOrderBy());

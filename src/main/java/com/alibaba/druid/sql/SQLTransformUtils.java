@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,38 @@
  */
 package com.alibaba.druid.sql;
 
+import java.util.List;
+
 import com.alibaba.druid.sql.ast.SQLDataType;
 import com.alibaba.druid.sql.ast.SQLDataTypeImpl;
 import com.alibaba.druid.sql.ast.SQLExpr;
-import com.alibaba.druid.sql.ast.expr.*;
+import com.alibaba.druid.sql.ast.expr.SQLAllColumnExpr;
+import com.alibaba.druid.sql.ast.expr.SQLBinaryOpExpr;
+import com.alibaba.druid.sql.ast.expr.SQLBinaryOperator;
+import com.alibaba.druid.sql.ast.expr.SQLCaseExpr;
+import com.alibaba.druid.sql.ast.expr.SQLCharExpr;
+import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
+import com.alibaba.druid.sql.ast.expr.SQLIntegerExpr;
+import com.alibaba.druid.sql.ast.expr.SQLIntervalExpr;
+import com.alibaba.druid.sql.ast.expr.SQLMethodInvokeExpr;
+import com.alibaba.druid.sql.ast.expr.SQLNullExpr;
+import com.alibaba.druid.sql.ast.expr.SQLNumericLiteralExpr;
+import com.alibaba.druid.sql.ast.expr.SQLVariantRefExpr;
 import com.alibaba.druid.sql.ast.statement.SQLCharacterDataType;
-
-import java.util.List;
+import com.alibaba.druid.sql.ast.statement.SQLColumnDefinition;
+import com.alibaba.druid.sql.ast.statement.SQLExprTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLJoinTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLSelectQueryBlock;
+import com.alibaba.druid.sql.ast.statement.SQLSubqueryTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLWithSubqueryClause;
+import com.alibaba.druid.sql.dialect.oracle.ast.clause.OracleWithSubqueryEntry;
+import com.alibaba.druid.sql.dialect.oracle.ast.expr.OracleSysdateExpr;
+import com.alibaba.druid.sql.dialect.oracle.ast.stmt.OracleSelectJoin;
+import com.alibaba.druid.sql.dialect.oracle.ast.stmt.OracleSelectQueryBlock;
+import com.alibaba.druid.sql.dialect.oracle.ast.stmt.OracleSelectSubqueryTableSource;
+import com.alibaba.druid.sql.dialect.oracle.ast.stmt.OracleSelectTableReference;
+import com.alibaba.druid.util.FnvHash;
 
 public class SQLTransformUtils {
     public static SQLExpr transformDecode(SQLMethodInvokeExpr x) {
@@ -96,17 +121,16 @@ public class SQLTransformUtils {
 
     public static SQLDataType transformOracleToMySql(SQLDataType x) {
         final String name = x.getName();
+        final long nameHash = x.nameHashCode64();
 
         if (name == null) {
             return x;
         }
         List<SQLExpr> argumentns = x.getArguments();
 
-        String name_lower = name.toLowerCase();
-
         SQLDataType dataType;
 
-        if ("urowid".equalsIgnoreCase(name_lower)) {
+        if (nameHash == FnvHash.Constants.UROWID) {
             int len = 4000;
             if (argumentns.size() == 1) {
                 SQLExpr arg0 = argumentns.get(0);
@@ -115,24 +139,25 @@ public class SQLTransformUtils {
                 }
             }
             dataType = new SQLDataTypeImpl("varchar", len);
-        } else if ("rowid".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.ROWID) {
             dataType = new SQLDataTypeImpl("char", 10);
 
-        } else if ("boolean".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.BOOLEAN) {
             dataType = new SQLDataTypeImpl("tinyint");
 
-        } else if ("integer".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.INTEGER) {
             dataType = new SQLDataTypeImpl("int");
 
-        } else if ("float".equals(name_lower) || "binary_float".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.FLOAT
+                || nameHash == FnvHash.Constants.BINARY_FLOAT) {
                 dataType = new SQLDataTypeImpl("float");
 
-        } else if ("real".equals(name_lower)
-                || "double precision".equals(name_lower)
-                || "binary_double".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.REAL
+                || nameHash == FnvHash.Constants.BINARY_DOUBLE
+                || nameHash == FnvHash.Constants.DOUBLE_PRECISION) {
             dataType = new SQLDataTypeImpl("double");
 
-        } else if ("number".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.NUMBER) {
             if (argumentns.size() == 0) {
                 dataType = new SQLDataTypeImpl("decimal", 38);
             } else {
@@ -141,7 +166,6 @@ public class SQLTransformUtils {
                 int precision, scale = 0;
                 if (arg0 instanceof SQLAllColumnExpr) {
                     precision = 9;
-                    scale = 1;
                 } else {
                     precision = ((SQLIntegerExpr) arg0).getNumber().intValue();
                 }
@@ -168,7 +192,7 @@ public class SQLTransformUtils {
                         dataType = new SQLDataTypeImpl("smallint");
                     } else if (precision < 9) {
                         dataType = new SQLDataTypeImpl("int");
-                    } else if (precision < 19) {
+                    } else if (precision <= 20) {
                         dataType = new SQLDataTypeImpl("bigint");
                     } else {
                         dataType = new SQLDataTypeImpl("decimal", precision);
@@ -178,7 +202,9 @@ public class SQLTransformUtils {
                 }
             }
 
-        } else if ("dec".equals(name_lower) || "decimal".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.DEC
+                || nameHash == FnvHash.Constants.DECIMAL) {
+
             dataType = x.clone();
             dataType.setName("decimal");
 
@@ -201,7 +227,7 @@ public class SQLTransformUtils {
 //            }
             /////////////////////////////////
 
-        } else if ("raw".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.RAW) {
             int len;
 
             if (argumentns.size() == 0) {
@@ -224,8 +250,8 @@ public class SQLTransformUtils {
             } else {
                 dataType = new SQLDataTypeImpl("varbinary", len);
             }
-        } else if ("char".equals(name_lower)
-                || "character".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.CHAR
+                || nameHash == FnvHash.Constants.CHARACTER) {
             if (argumentns.size() == 1) {
                 SQLExpr arg0 = argumentns.get(0);
 
@@ -247,7 +273,7 @@ public class SQLTransformUtils {
                 throw new UnsupportedOperationException(SQLUtils.toOracleString(x));
             }
 
-        } else if ("nchar".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.NCHAR) {
             if (argumentns.size() == 1) {
                 SQLExpr arg0 = argumentns.get(0);
 
@@ -269,7 +295,7 @@ public class SQLTransformUtils {
                 throw new UnsupportedOperationException(SQLUtils.toOracleString(x));
             }
 
-        } else if ("varchar2".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.VARCHAR2) {
             if (argumentns.size() > 0) {
                 int len;
                 SQLExpr arg0 = argumentns.get(0);
@@ -283,7 +309,7 @@ public class SQLTransformUtils {
                 dataType = new SQLCharacterDataType("varchar");
             }
 
-        } else if ("nvarchar2".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.NVARCHAR2) {
             if (argumentns.size() > 0) {
                 int len;
                 SQLExpr arg0 = argumentns.get(0);
@@ -297,11 +323,11 @@ public class SQLTransformUtils {
                 dataType = new SQLCharacterDataType("nvarchar");
             }
 
-        } else if ("bfile".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.BFILE) {
             dataType = new SQLCharacterDataType("varchar", 255);
 
-        } else if ("date".equals(name_lower)
-                || "timestamp".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.DATE
+                || nameHash == FnvHash.Constants.TIMESTAMP) {
             int len = -1;
             if (argumentns.size() > 0) {
                 SQLExpr arg0 = argumentns.get(0);
@@ -320,14 +346,15 @@ public class SQLTransformUtils {
             } else {
                 dataType = new SQLDataTypeImpl("datetime");
             }
-        } else if ("blob".equals(name_lower) || "long raw".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.BLOB
+                || nameHash == FnvHash.Constants.LONG_RAW) {
             argumentns.clear();
             dataType = new SQLDataTypeImpl("LONGBLOB");
 
-        } else if ("clob".equals(name_lower)
-                || "nclob".equals(name_lower)
-                || "long".equals(name_lower)
-                || "xmltype".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.CLOB
+                || nameHash == FnvHash.Constants.NCLOB
+                || nameHash == FnvHash.Constants.LONG
+                || nameHash == FnvHash.Constants.XMLTYPE) {
             argumentns.clear();
             dataType = new SQLCharacterDataType("LONGTEXT");
 
@@ -396,17 +423,16 @@ public class SQLTransformUtils {
 
     public static SQLDataType transformOracleToPostgresql(SQLDataType x) {
         final String name = x.getName();
+        final long nameHash = x.nameHashCode64();
 
         if (name == null) {
             return x;
         }
         List<SQLExpr> argumentns = x.getArguments();
 
-        String name_lower = name.toLowerCase();
-
         SQLDataType dataType;
 
-        if ("urowid".equalsIgnoreCase(name_lower)) {
+        if (nameHash == FnvHash.Constants.UROWID) {
             int len = 4000;
             if (argumentns.size() == 1) {
                 SQLExpr arg0 = argumentns.get(0);
@@ -414,34 +440,37 @@ public class SQLTransformUtils {
                     len = ((SQLIntegerExpr) arg0).getNumber().intValue();
                 }
             }
-            dataType = new SQLDataTypeImpl("varchar", len);
-        } else if ("rowid".equals(name_lower)) {
-            dataType = new SQLDataTypeImpl("char", 10);
+            dataType = new SQLDataTypeImpl(SQLDataType.Constants.VARCHAR, len);
+        } else if (nameHash == FnvHash.Constants.ROWID) {
+            dataType = new SQLDataTypeImpl(SQLDataType.Constants.CHAR, 10);
 
-        } else if ("boolean".equals(name_lower)) {
-            dataType = new SQLDataTypeImpl("tinyint");
+        } else if (nameHash == FnvHash.Constants.BOOLEAN || nameHash == FnvHash.Constants.SMALLINT) {
+            dataType = new SQLDataTypeImpl(SQLDataType.Constants.SMALLINT);
 
-        } else if ("integer".equals(name_lower) || "int".equals(name_lower)) {
-            dataType = new SQLDataTypeImpl("decimal", 38);
+        } else if (nameHash == FnvHash.Constants.INTEGER
+                || nameHash == FnvHash.Constants.INT) {
+            dataType = new SQLDataTypeImpl(SQLDataType.Constants.DECIMAL, 38);
 
-        } else if ("binary_float".equals(name_lower)) {
-            dataType = new SQLDataTypeImpl("real");
+        } else if (nameHash == FnvHash.Constants.BINARY_FLOAT) {
+            dataType = new SQLDataTypeImpl(SQLDataType.Constants.REAL);
 
-        } else if ("binary_double".equals(name_lower)
-                || "float".equals(name_lower)
-                || "real".equals(name_lower)) {
-            dataType = new SQLDataTypeImpl("double precision");
+        } else if (nameHash == FnvHash.Constants.BINARY_DOUBLE
+                || nameHash == FnvHash.Constants.FLOAT
+                || nameHash == FnvHash.Constants.DOUBLE
+                || nameHash == FnvHash.Constants.REAL
+                || nameHash == FnvHash.Constants.DOUBLE_PRECISION) {
+            dataType = new SQLDataTypeImpl(SQLDataType.Constants.DOUBLE_PRECISION);
 
-        } else if ("number".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.NUMBER) {
             if (argumentns.size() == 0) {
-                dataType = new SQLDataTypeImpl("decimal", 38);
+                dataType = new SQLDataTypeImpl(SQLDataType.Constants.DECIMAL, 38);
             } else {
                 SQLExpr arg0 = argumentns.get(0);
 
                 int precision, scale = 0;
                 if (arg0 instanceof SQLAllColumnExpr) {
-                    precision = 9;
-                    scale = 1;
+                    precision = 19;
+                    scale = -1;
                 } else {
                     precision = ((SQLIntegerExpr) arg0).getNumber().intValue();
                 }
@@ -462,25 +491,26 @@ public class SQLTransformUtils {
                 }
 
                 if (scale == 0) {
-                    if (precision < 3) {
-                        dataType = new SQLDataTypeImpl("tinyint");
-                    } else if (precision < 5) {
-                        dataType = new SQLDataTypeImpl("smallint");
+                    if (precision < 5) {
+                        dataType = new SQLDataTypeImpl(SQLDataType.Constants.SMALLINT);
                     } else if (precision < 9) {
-                        dataType = new SQLDataTypeImpl("int");
-                    } else if (precision < 19) {
-                        dataType = new SQLDataTypeImpl("bigint");
+                        dataType = new SQLDataTypeImpl(SQLDataType.Constants.INT);
+                    } else if (precision <= 20) {
+                        dataType = new SQLDataTypeImpl(SQLDataType.Constants.BIGINT);
                     } else {
-                        dataType = new SQLDataTypeImpl("decimal", precision);
+                        dataType = new SQLDataTypeImpl(SQLDataType.Constants.DECIMAL, precision);
                     }
+                } else if (scale == -1) {
+                    dataType = new SQLDataTypeImpl(SQLDataType.Constants.DOUBLE_PRECISION);
                 } else {
-                    dataType = new SQLDataTypeImpl("decimal", precision, scale);
+                    dataType = new SQLDataTypeImpl(SQLDataType.Constants.DECIMAL, precision, scale);
                 }
             }
 
-        } else if ("dec".equals(name_lower) || "decimal".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.DEC
+                || nameHash == FnvHash.Constants.DECIMAL) {
             dataType = x.clone();
-            dataType.setName("decimal");
+            dataType.setName(SQLDataType.Constants.DECIMAL);
 
             int precision = 0;
             if (argumentns.size() > 0) {
@@ -495,8 +525,23 @@ public class SQLTransformUtils {
                 }
             }
 
-        } else if ("char".equals(name_lower)
-                || "character".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.CHARACTER) {
+            if (argumentns.size() == 1) {
+                SQLExpr arg0 = argumentns.get(0);
+
+                int len;
+                if (arg0 instanceof SQLNumericLiteralExpr) {
+                    len = ((SQLNumericLiteralExpr) arg0).getNumber().intValue();
+                } else {
+                    throw new UnsupportedOperationException(SQLUtils.toOracleString(x));
+                }
+                dataType = new SQLCharacterDataType(SQLDataType.Constants.CHAR, len);
+            } else if (argumentns.size() == 0) {
+                dataType = new SQLCharacterDataType(SQLDataType.Constants.CHAR);
+            } else {
+                throw new UnsupportedOperationException(SQLUtils.toOracleString(x));
+            }
+        } else if (nameHash == FnvHash.Constants.CHAR) {
             if (argumentns.size() == 1) {
                 SQLExpr arg0 = argumentns.get(0);
 
@@ -507,40 +552,46 @@ public class SQLTransformUtils {
                     throw new UnsupportedOperationException(SQLUtils.toOracleString(x));
                 }
 
-                if (len <= 255) {
-                    dataType = new SQLCharacterDataType("char", len);
+                if (len <= 2000) {
+                    dataType = x;
+                    dataType.setName(SQLDataType.Constants.CHAR);
                 } else {
-                    dataType = new SQLCharacterDataType("varchar", len);
+                    dataType = new SQLCharacterDataType(SQLDataType.Constants.TEXT);
                 }
             } else if (argumentns.size() == 0) {
-                dataType = new SQLCharacterDataType("char");
+                dataType = new SQLCharacterDataType(SQLDataType.Constants.CHAR);
             } else {
                 throw new UnsupportedOperationException(SQLUtils.toOracleString(x));
             }
-
-        } else if ("nchar".equals(name_lower)) {
-            if (argumentns.size() == 1) {
-                SQLExpr arg0 = argumentns.get(0);
-
+        } else if (nameHash == FnvHash.Constants.NCHAR) {
+            // no changed
+            dataType = x;
+            dataType.setName(SQLDataType.Constants.NCHAR);
+        } else if (nameHash == FnvHash.Constants.VARCHAR
+                || nameHash == FnvHash.Constants.VARCHAR2) {
+            if (argumentns.size() > 0) {
                 int len;
+                SQLExpr arg0 = argumentns.get(0);
                 if (arg0 instanceof SQLNumericLiteralExpr) {
                     len = ((SQLNumericLiteralExpr) arg0).getNumber().intValue();
+                } else if (arg0 instanceof SQLVariantRefExpr) {
+                    len = 2000;
                 } else {
                     throw new UnsupportedOperationException(SQLUtils.toOracleString(x));
                 }
 
-                if (len <= 255) {
-                    dataType = new SQLCharacterDataType("char", len);
+                if (len <= 4000) {
+                    dataType = new SQLCharacterDataType(SQLDataType.Constants.VARCHAR, len);
                 } else {
-                    dataType = new SQLCharacterDataType("varchar", len);
+                    dataType = new SQLCharacterDataType(SQLDataType.Constants.TEXT);
                 }
-            } else if (argumentns.size() == 0) {
-                dataType = new SQLCharacterDataType("char");
             } else {
-                throw new UnsupportedOperationException(SQLUtils.toOracleString(x));
+                dataType = new SQLCharacterDataType(SQLDataType.Constants.VARCHAR);
             }
 
-        } else if ("varchar2".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.NVARCHAR
+                || nameHash == FnvHash.Constants.NVARCHAR2
+                || nameHash == FnvHash.Constants.NCHAR_VARYING) {
             if (argumentns.size() > 0) {
                 int len;
                 SQLExpr arg0 = argumentns.get(0);
@@ -549,30 +600,23 @@ public class SQLTransformUtils {
                 } else {
                     throw new UnsupportedOperationException(SQLUtils.toOracleString(x));
                 }
-                dataType = new SQLCharacterDataType("varchar", len);
+                dataType = new SQLCharacterDataType(SQLDataType.Constants.VARCHAR, len);
             } else {
-                dataType = new SQLCharacterDataType("varchar");
+                dataType = new SQLCharacterDataType(SQLDataType.Constants.VARCHAR);
             }
 
-        } else if ("nvarchar2".equals(name_lower) || "nchar varying".equals(name_lower)) {
-            if (argumentns.size() > 0) {
-                int len;
-                SQLExpr arg0 = argumentns.get(0);
-                if (arg0 instanceof SQLNumericLiteralExpr) {
-                    len = ((SQLNumericLiteralExpr) arg0).getNumber().intValue();
-                } else {
-                    throw new UnsupportedOperationException(SQLUtils.toOracleString(x));
-                }
-                dataType = new SQLCharacterDataType("varchar", len);
-            } else {
-                dataType = new SQLCharacterDataType("varchar");
+        } else if (nameHash == FnvHash.Constants.BFILE) {
+            dataType = new SQLCharacterDataType(SQLDataType.Constants.VARCHAR, 255);
+        } else if (nameHash == FnvHash.Constants.DATE) {
+            dataType = new SQLDataTypeImpl(SQLDataType.Constants.TIMESTAMP, 0);
+        } else if (nameHash == FnvHash.Constants.TIMESTAMP) {
+            x.setName(SQLDataType.Constants.TIMESTAMP);
+            if (x.isWithLocalTimeZone()) {
+                x.setWithLocalTimeZone(false);
+                x.setWithTimeZone(null);
             }
-
-        } else if ("bfile".equals(name_lower)) {
-            dataType = new SQLCharacterDataType("varchar", 255);
-
-        } else if ("date".equals(name_lower)
-                || "timestamp".equals(name_lower)) {
+            dataType = x;
+        } else if (nameHash == FnvHash.Constants.DATETIME) {
             int len = -1;
             if (argumentns.size() > 0) {
                 SQLExpr arg0 = argumentns.get(0);
@@ -583,19 +627,25 @@ public class SQLTransformUtils {
                 }
             }
 
-            dataType = new SQLDataTypeImpl("timestamp", len);
-        } else if ("blob".equals(name_lower) || "long raw".equals(name_lower) || "raw".equals(name_lower)) {
+            if (len > 0) {
+                dataType = new SQLDataTypeImpl(SQLDataType.Constants.TIMESTAMP, len);
+            } else {
+                dataType = new SQLDataTypeImpl(SQLDataType.Constants.TIMESTAMP);
+            }
+        } else if (nameHash == FnvHash.Constants.BLOB
+                || nameHash == FnvHash.Constants.LONG_RAW
+                || nameHash == FnvHash.Constants.RAW) {
             argumentns.clear();
-            dataType = new SQLDataTypeImpl("bytea");
+            dataType = new SQLDataTypeImpl(SQLDataType.Constants.BYTEA);
 
-        } else if ("clob".equals(name_lower)
-                || "nclob".equals(name_lower)
-                || "long".equals(name_lower)) {
+        } else if (nameHash == FnvHash.Constants.CLOB
+                || nameHash == FnvHash.Constants.NCLOB
+                || nameHash == FnvHash.Constants.LONG) {
             argumentns.clear();
-            dataType = new SQLCharacterDataType("TEXT");
+            dataType = new SQLCharacterDataType(SQLDataType.Constants.TEXT);
 
-        } else if ("xmltype".equals(name_lower)) {
-            dataType = new SQLDataTypeImpl("xml");
+        } else if (nameHash == FnvHash.Constants.XMLTYPE) {
+            dataType = new SQLDataTypeImpl(SQLDataType.Constants.XML);
         } else {
             dataType = x;
         }
@@ -605,5 +655,156 @@ public class SQLTransformUtils {
         }
 
         return dataType;
+    }
+
+    public static SQLExpr transformOracleToPostgresql(SQLMethodInvokeExpr x) {
+        final long nameHashCode64 = x.methodNameHashCode64();
+        List<SQLExpr> parameters = x.getParameters();
+
+        if (nameHashCode64 == FnvHash.Constants.SYS_GUID) {
+            SQLMethodInvokeExpr uuid_generate_v4 = new SQLMethodInvokeExpr("uuid_generate_v4");
+
+            uuid_generate_v4.setParent(x.getParent());
+            return uuid_generate_v4;
+        }
+
+        if (nameHashCode64 == FnvHash.Constants.TRUNC) {
+            if (parameters.size() == 1) {
+                SQLExpr param0 = parameters.get(0);
+                if (param0 instanceof OracleSysdateExpr
+                        || (param0 instanceof SQLIdentifierExpr
+                            && ((SQLIdentifierExpr) param0).nameHashCode64() == FnvHash.Constants.CURRENT_TIMESTAMP)) {
+                    SQLMethodInvokeExpr current_timestamp = new SQLMethodInvokeExpr("CURRENT_TIMESTAMP");
+                    current_timestamp.addParameter(new SQLIntegerExpr(0));
+
+                    current_timestamp.setParent(x.getParent());
+                    return current_timestamp;
+                }
+            }
+        }
+
+        if (nameHashCode64 == FnvHash.Constants.CURRENT_TIMESTAMP) {
+            if (parameters.size() == 0 && x.getParent() instanceof SQLColumnDefinition) {
+                SQLDataType dataType = ((SQLColumnDefinition) x.getParent()).getDataType();
+                if (dataType.nameHashCode64() == FnvHash.Constants.TIMESTAMP
+                        && dataType.getArguments().size() == 1) {
+                    x.addParameter(dataType.getArguments().get(0).clone());
+                } else {
+                    x.addParameter(new SQLIntegerExpr(0));
+                }
+                return x;
+            }
+        }
+
+        if (nameHashCode64 == FnvHash.Constants.SYSTIMESTAMP) {
+            SQLMethodInvokeExpr xx = x.clone();
+            xx.setMethodName("CURRENT_TIMESTAMP");
+            xx.setParent(x.getParent());
+            return xx;
+        }
+
+        if (nameHashCode64 == FnvHash.Constants.USERENV) {
+            if (x.getParameters().size() == 1) {
+                SQLExpr param0 = x.getParameters().get(0);
+                if (param0 instanceof SQLCharExpr) {
+                    String text = ((SQLCharExpr) param0).getText();
+                    if ("SESSIONID".equalsIgnoreCase(text)) {
+                        SQLMethodInvokeExpr xx = new SQLMethodInvokeExpr();
+                        xx.setMethodName("get_session_id");
+                        xx.setParent(x.getParent());
+                        return xx;
+                    }
+                }
+            }
+        }
+
+        if (nameHashCode64 == FnvHash.Constants.USERENV) {
+            if (x.getParameters().size() == 1) {
+                SQLExpr param0 = x.getParameters().get(0);
+                if (param0 instanceof SQLCharExpr) {
+                    String text = ((SQLCharExpr) param0).getText();
+                    if ("SESSIONID".equalsIgnoreCase(text)) {
+                        SQLMethodInvokeExpr xx = new SQLMethodInvokeExpr();
+                        xx.setMethodName("get_session_id");
+                        xx.setParent(x.getParent());
+                        return xx;
+                    }
+                }
+            }
+        }
+
+        if (nameHashCode64 == FnvHash.Constants.NUMTODSINTERVAL) {
+            if (x.getParameters().size() == 2) {
+                SQLExpr param0 = x.getParameters().get(0);
+                SQLExpr param1 = x.getParameters().get(1);
+
+                if (param0 instanceof SQLIntegerExpr && param1 instanceof SQLCharExpr) {
+                    String text = ((SQLCharExpr) param1).getText();
+                    if ("DAY".equalsIgnoreCase(text)) {
+                        SQLIntervalExpr intervalExpr = new SQLIntervalExpr();
+                        intervalExpr.setValue(new SQLCharExpr(param0.toString() + " DAYS"));
+                        intervalExpr.setParent(x.getParent());
+                        return intervalExpr;
+                    }
+                }
+            }
+        }
+
+        return x;
+    }
+
+    public static SQLTableSource transformOracleToPostgresql(SQLTableSource x) {
+        if (x instanceof OracleSelectTableReference) {
+            OracleSelectTableReference xx = (OracleSelectTableReference) x;
+            SQLExprTableSource y = new SQLExprTableSource();
+            xx.cloneTo(y);
+
+            y.setParent(x.getParent());
+            return y;
+        }
+
+        if (x instanceof OracleSelectJoin) {
+            OracleSelectJoin xx = (OracleSelectJoin) x;
+            SQLJoinTableSource y = new SQLJoinTableSource();
+            xx.cloneTo(y);
+
+            y.setLeft(transformOracleToPostgresql(y.getLeft()));
+            y.setRight(transformOracleToPostgresql(y.getRight()));
+
+            y.setParent(x.getParent());
+            return y;
+        }
+
+        if (x instanceof OracleSelectSubqueryTableSource) {
+            OracleSelectSubqueryTableSource xx = (OracleSelectSubqueryTableSource) x;
+            SQLSubqueryTableSource y = new SQLSubqueryTableSource();
+            xx.cloneTo(y);
+
+            y.setParent(x.getParent());
+            return y;
+        }
+
+        if (x instanceof OracleWithSubqueryEntry) {
+            SQLWithSubqueryClause.Entry entry = new SQLWithSubqueryClause.Entry();
+            ((OracleWithSubqueryEntry) x).cloneTo(entry);
+            entry.setParent(x.getParent());
+            return entry;
+        }
+
+        return x;
+    }
+
+    public static SQLSelectQueryBlock transformOracleToPostgresql(SQLSelectQueryBlock x) {
+        if (x instanceof OracleSelectQueryBlock) {
+            OracleSelectQueryBlock xx = (OracleSelectQueryBlock) x;
+            SQLSelectQueryBlock y = new SQLSelectQueryBlock();
+            xx.cloneTo(y);
+            y.setFrom(transformOracleToPostgresql(y.getFrom()));
+
+            y.setParent(x.getParent());
+            return y;
+        }
+
+        return x;
     }
 }

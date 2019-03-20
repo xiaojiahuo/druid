@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2017 Alibaba Group Holding Ltd.
+ * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,72 @@
  */
 package com.alibaba.druid.sql.visitor;
 
-import com.alibaba.druid.sql.ast.*;
-import com.alibaba.druid.sql.ast.expr.*;
+import com.alibaba.druid.sql.ast.SQLArgument;
+import com.alibaba.druid.sql.ast.SQLArrayDataType;
+import com.alibaba.druid.sql.ast.SQLCommentHint;
+import com.alibaba.druid.sql.ast.SQLDataType;
+import com.alibaba.druid.sql.ast.SQLDeclareItem;
+import com.alibaba.druid.sql.ast.SQLKeep;
+import com.alibaba.druid.sql.ast.SQLLimit;
+import com.alibaba.druid.sql.ast.SQLMapDataType;
+import com.alibaba.druid.sql.ast.SQLObject;
+import com.alibaba.druid.sql.ast.SQLOrderBy;
+import com.alibaba.druid.sql.ast.SQLOver;
+import com.alibaba.druid.sql.ast.SQLParameter;
+import com.alibaba.druid.sql.ast.SQLPartition;
+import com.alibaba.druid.sql.ast.SQLPartitionByHash;
+import com.alibaba.druid.sql.ast.SQLPartitionByList;
+import com.alibaba.druid.sql.ast.SQLPartitionByRange;
+import com.alibaba.druid.sql.ast.SQLPartitionValue;
+import com.alibaba.druid.sql.ast.SQLRecordDataType;
+import com.alibaba.druid.sql.ast.SQLStructDataType;
+import com.alibaba.druid.sql.ast.SQLSubPartition;
+import com.alibaba.druid.sql.ast.SQLSubPartitionByHash;
+import com.alibaba.druid.sql.ast.SQLSubPartitionByList;
+import com.alibaba.druid.sql.ast.SQLWindow;
+import com.alibaba.druid.sql.ast.expr.SQLAggregateExpr;
+import com.alibaba.druid.sql.ast.expr.SQLAllColumnExpr;
+import com.alibaba.druid.sql.ast.expr.SQLAllExpr;
+import com.alibaba.druid.sql.ast.expr.SQLAnyExpr;
+import com.alibaba.druid.sql.ast.expr.SQLArrayExpr;
+import com.alibaba.druid.sql.ast.expr.SQLBetweenExpr;
+import com.alibaba.druid.sql.ast.expr.SQLBinaryExpr;
+import com.alibaba.druid.sql.ast.expr.SQLBinaryOpExpr;
+import com.alibaba.druid.sql.ast.expr.SQLBinaryOpExprGroup;
+import com.alibaba.druid.sql.ast.expr.SQLBooleanExpr;
+import com.alibaba.druid.sql.ast.expr.SQLCaseExpr;
+import com.alibaba.druid.sql.ast.expr.SQLCaseStatement;
+import com.alibaba.druid.sql.ast.expr.SQLCastExpr;
+import com.alibaba.druid.sql.ast.expr.SQLCharExpr;
+import com.alibaba.druid.sql.ast.expr.SQLContainsExpr;
+import com.alibaba.druid.sql.ast.expr.SQLCurrentOfCursorExpr;
+import com.alibaba.druid.sql.ast.expr.SQLDateExpr;
+import com.alibaba.druid.sql.ast.expr.SQLDefaultExpr;
+import com.alibaba.druid.sql.ast.expr.SQLExistsExpr;
+import com.alibaba.druid.sql.ast.expr.SQLFlashbackExpr;
+import com.alibaba.druid.sql.ast.expr.SQLGroupingSetExpr;
+import com.alibaba.druid.sql.ast.expr.SQLHexExpr;
+import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
+import com.alibaba.druid.sql.ast.expr.SQLInListExpr;
+import com.alibaba.druid.sql.ast.expr.SQLInSubQueryExpr;
+import com.alibaba.druid.sql.ast.expr.SQLIntegerExpr;
+import com.alibaba.druid.sql.ast.expr.SQLIntervalExpr;
+import com.alibaba.druid.sql.ast.expr.SQLListExpr;
+import com.alibaba.druid.sql.ast.expr.SQLMethodInvokeExpr;
+import com.alibaba.druid.sql.ast.expr.SQLNCharExpr;
+import com.alibaba.druid.sql.ast.expr.SQLNotExpr;
+import com.alibaba.druid.sql.ast.expr.SQLNullExpr;
+import com.alibaba.druid.sql.ast.expr.SQLNumberExpr;
+import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
+import com.alibaba.druid.sql.ast.expr.SQLQueryExpr;
+import com.alibaba.druid.sql.ast.expr.SQLRealExpr;
+import com.alibaba.druid.sql.ast.expr.SQLSequenceExpr;
+import com.alibaba.druid.sql.ast.expr.SQLSomeExpr;
+import com.alibaba.druid.sql.ast.expr.SQLTimestampExpr;
+import com.alibaba.druid.sql.ast.expr.SQLUnaryExpr;
+import com.alibaba.druid.sql.ast.expr.SQLValuesExpr;
+import com.alibaba.druid.sql.ast.expr.SQLVariantRefExpr;
 import com.alibaba.druid.sql.ast.statement.*;
-import com.alibaba.druid.sql.ast.statement.SQLWhileStatement;
-import com.alibaba.druid.sql.ast.statement.SQLDeclareStatement;
-import com.alibaba.druid.sql.ast.statement.SQLCommitStatement;
 
 public interface SQLASTVisitor {
 
@@ -64,9 +124,9 @@ public interface SQLASTVisitor {
 
     void endVisit(SQLSelectStatement selectStatement);
 
-    void postVisit(SQLObject astNode);
+    void postVisit(SQLObject x);
 
-    void preVisit(SQLObject astNode);
+    void preVisit(SQLObject x);
 
     boolean visit(SQLAllColumnExpr x);
 
@@ -738,5 +798,111 @@ public interface SQLASTVisitor {
     boolean visit(SQLBinaryOpExprGroup x);
 
     void endVisit(SQLBinaryOpExprGroup x);
-    //
+
+    boolean visit(SQLScriptCommitStatement x);
+
+    void endVisit(SQLScriptCommitStatement x);
+
+    boolean visit(SQLReplaceStatement x);
+
+    void endVisit(SQLReplaceStatement x);
+
+    boolean visit(SQLCreateUserStatement x);
+
+    void endVisit(SQLCreateUserStatement x);
+
+    boolean visit(SQLAlterFunctionStatement x);
+
+    void endVisit(SQLAlterFunctionStatement x);
+
+    boolean visit(SQLAlterTypeStatement x);
+
+    void endVisit(SQLAlterTypeStatement x);
+
+    boolean visit(SQLIntervalExpr x);
+
+    void endVisit(SQLIntervalExpr x);
+
+    boolean visit(SQLLateralViewTableSource x);
+
+    void endVisit(SQLLateralViewTableSource x);
+
+    boolean visit(SQLShowErrorsStatement x);
+    void endVisit(SQLShowErrorsStatement x);
+
+    boolean visit(SQLAlterCharacter x);
+    void endVisit(SQLAlterCharacter x);
+
+    boolean visit(SQLExprStatement x);
+    void endVisit(SQLExprStatement x);
+
+    boolean visit(SQLAlterProcedureStatement x);
+    void endVisit(SQLAlterProcedureStatement x);
+
+    boolean visit(SQLAlterViewStatement x);
+    void endVisit(SQLAlterViewStatement x);
+
+    boolean visit(SQLDropEventStatement x);
+    void endVisit(SQLDropEventStatement x);
+
+    boolean visit(SQLDropLogFileGroupStatement x);
+    void endVisit(SQLDropLogFileGroupStatement x);
+
+    boolean visit(SQLDropServerStatement x);
+    void endVisit(SQLDropServerStatement x);
+
+    boolean visit(SQLDropSynonymStatement x);
+    void endVisit(SQLDropSynonymStatement x);
+
+    boolean visit(SQLRecordDataType x);
+    void endVisit(SQLRecordDataType x);
+
+    boolean visit(SQLDropTypeStatement x);
+    void endVisit(SQLDropTypeStatement x);
+
+    boolean visit(SQLExternalRecordFormat x);
+    void endVisit(SQLExternalRecordFormat x);
+
+    boolean visit(SQLArrayDataType x);
+    void endVisit(SQLArrayDataType x);
+
+    boolean visit(SQLMapDataType x);
+    void endVisit(SQLMapDataType x);
+
+    boolean visit(SQLStructDataType x);
+    void endVisit(SQLStructDataType x);
+
+    boolean visit(SQLStructDataType.Field x);
+    void endVisit(SQLStructDataType.Field x);
+
+    boolean visit(SQLDropMaterializedViewStatement x);
+    void endVisit(SQLDropMaterializedViewStatement x);
+
+    boolean visit(SQLAlterTableRenameIndex x);
+    void endVisit(SQLAlterTableRenameIndex x);
+
+    boolean visit(SQLAlterSequenceStatement x);
+    void endVisit(SQLAlterSequenceStatement x);
+
+    boolean visit(SQLAlterTableExchangePartition x);
+    void endVisit(SQLAlterTableExchangePartition x);
+
+    boolean visit(SQLValuesExpr x);
+    void endVisit(SQLValuesExpr x);
+
+    boolean visit(SQLValuesTableSource x);
+    void endVisit(SQLValuesTableSource x);
+
+    boolean visit(SQLContainsExpr x);
+    void endVisit(SQLContainsExpr x);
+
+    boolean visit(SQLRealExpr x);
+    void endVisit(SQLRealExpr x);
+
+    boolean visit(SQLWindow x);
+    void endVisit(SQLWindow x);
+
+    boolean visit(SQLDumpStatement x);
+    void endVisit(SQLDumpStatement x);
+
 }
